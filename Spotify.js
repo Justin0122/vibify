@@ -72,7 +72,7 @@ class Spotify {
      * @throws {Error} - Failed to retrieve Spotify user
      */
     async getUser(id) {
-        const link = `${this.apiUrl}?discord_id=${id}&secure_token=${this.secureToken}`;
+        const link = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}`;
         const options = {
             url: link,
             headers: {
@@ -90,7 +90,7 @@ class Spotify {
                     try {
                         this.setSpotifyTokens(user.attributes.spotify_access_token, user.attributes.spotify_refresh_token);
                     } catch (error) {
-                        reject(new Error('You have not authorized the application. Please authorize it using `/spotify auth`.'));
+                        reject(new Error('You have not authorized the application.'));
                     }
 
                     try {
@@ -120,7 +120,7 @@ class Spotify {
      * @returns {Promise} - The user's Spotify refresh token
      */
     async getRefreshToken(id) {
-        const link = `${this.apiUrl}?discord_id=${id}&secure_token=${this.secureToken}`;
+        const link = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}`;
         const options = {
             url: link,
             headers: {
@@ -527,7 +527,7 @@ class Spotify {
     }
 
     async logout(id) {
-        const url = `${this.apiUrl}?discord_id=${id}&secure_token=${this.secureToken}&logout=true`;
+        const url = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}&logout=true`;
         await fetch(url);
     }
 }

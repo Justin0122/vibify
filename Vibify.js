@@ -7,6 +7,8 @@ app.use(express.json());
 const dotenv = require('dotenv');
 dotenv.config();
 
+const API_KEY = process.env.API_KEY;
+
 // Spotify API credentials
 const secureToken = process.env.SPOTIFY_SECURE_TOKEN;
 const apiUrl = process.env.SPOTIFY_API_URL;
@@ -27,7 +29,17 @@ function catchErrors(fn) {
     }
 }
 
-app.get('/spotify/user/:id', catchErrors(async (req, res) => {
+function authenticateApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'];
+
+    if (apiKey === API_KEY) {
+        next();
+    } else {
+        res.status(403).json({ error: 'Unauthorized' });
+    }
+}
+
+app.get('/spotify/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const user = await spotify.getUser(req.params.id);
     res.json(user);
 }));

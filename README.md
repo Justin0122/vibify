@@ -24,6 +24,10 @@ This project uses npm for package management. To install all the dependencies, r
 npm install
 ```
 
+## Configuration
+
+To use the Spotify API, you need to set the environment variables in .env.example and rename it to .env.
+
 ## Usage
 
 To use the Spotify API, you need to create a Spotify Developer account and create an application. After creating an application, you will receive a client ID and a client secret. You will also need to set the redirect URI in the application settings. More information can be found [here](https://developer.spotify.com/documentation/general/guides/app-settings/).
