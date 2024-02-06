@@ -1,0 +1,15 @@
+{
+  "name": "vibify",
+  "version": "0.0.1",
+  "description": "Vibify is a Node.js API that interacts with the Spotify API to fetch user data, currently playing track, top tracks, and other Spotify functionalities.",
+  "main": "Vibify.js",
+  "scripts": {
+    "start": "node Vibify.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.1",
+    "express": "^4.18.2",
+    "request": "^2.88.2",
+    "spotify-web-api-node": "^5.0.2"
+  }
+}
