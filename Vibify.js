@@ -59,5 +59,12 @@ app.post('/spotify/create-playlist', catchErrors(async (req, res) => {
     res.json(playlist);
 }));
 
+
+app.post('/spotify/recommendations', catchErrors(async (req, res) => {
+    const { id, genre, recentlyPlayed, mostPlayed, likedSongs } = req.body;
+    const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs);
+    res.json(playlist);
+}));
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => console.log(`Server is running on port ${port}`));

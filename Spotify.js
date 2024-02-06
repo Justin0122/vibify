@@ -284,12 +284,9 @@ class Spotify {
      */
     async createPlaylist(id, month, year, playlistName) {
         if (!playlistName) {
-            console.log('No playlist name');
             const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
             playlistName = `Liked Songs from ${monthName} ${year}.`;
-            console.log(playlistName);
         }
-        console.log('Creating playlist');
         try {
             const songsFromMonth = await this.findLikedFromMonth(id, month, year);
             const playlistDescription = `This playlist is generated with your liked songs from ${month}/${year}.`;
@@ -399,12 +396,41 @@ class Spotify {
     /**
      * Creates a recommendation playlist.
      * @param {string} id - The user's ID.
-     * @param {Array<string>} trackIds - The IDs of the tracks.
-     * @param {string} genre - The genre.
+     * @param {Array<string>|string} genre - The genre(s).
+     * @param {boolean} [mostPlayed=true] - Flag indicating whether to include most played songs. Default is true.
+     * @param {boolean} [likedSongs=true] - Flag indicating whether to include liked songs. Default is true.
+     * @param {boolean} [recentlyPlayed=false] - Flag indicating whether to include recently played songs. Default is false.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, trackIds, genre) {
-        const audioFeatures = await this.getAudioFeatures(trackIds);
+    async createRecommendationPlaylist(id, genre, mostPlayed = true, likedSongs = true, recentlyPlayed = false) {
+        const options = [mostPlayed, likedSongs, recentlyPlayed];
+
+        if (!options.includes(true)) {
+            throw new Error('You must select at least one option.');
+        }
+        
+        const songIds = [];
+
+        if (options.includes(true)) {
+            if (mostPlayed) {
+                const mostPlayedSongs = await this.getTopTracks(id);
+                songIds.push(...mostPlayedSongs.items.map((song) => song.id));
+            }
+            if (likedSongs) {
+                const likedSongs = await this.getLikedSongs(id);
+                songIds.push(...likedSongs.items.map((song) => song.track.id));
+            }
+            if (recentlyPlayed) {
+                const recentlyPlayedSongs = await this.getLastListenedTracks(id);
+                songIds.push(...recentlyPlayedSongs.items.map((song) => song.track.id));
+            }
+
+            if (songIds.length === 0) {
+                throw new Error('No songs found.');
+            }
+        }
+
+        const audioFeatures = await this.getAudioFeatures(songIds, id);
         let lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
         let highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
         let lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
@@ -426,11 +452,13 @@ class Spotify {
 
         const randomTrackIds = [];
         for (let i = 0; i < 3; i++) {
-            const randomIndex = Math.floor(Math.random() * trackIds.length);
-            randomTrackIds.push(trackIds[randomIndex]);
+            const randomIndex = Math.floor(Math.random() * songIds.length);
+            randomTrackIds.push(songIds[randomIndex]);
         }
         if (!genre) {
-            await this.getTopGenre(2);
+            await this.getTopGenre(id, 2).then((topGenres) => {
+                genre = topGenres;
+            });
         }
 
 
