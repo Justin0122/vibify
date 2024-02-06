@@ -24,6 +24,8 @@ class Spotify {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
 
+        this.apiCallCount = 0;
+
         this.spotifyApi = new SpotifyWebApi({
             clientId: this.clientId,
             clientSecret: this.clientSecret,
@@ -39,17 +41,28 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
+        this.apiCallCount++;
+        console.log('API call count:', this.apiCallCount);
         try {
             return await apiCall();
         } catch (error) {
             console.log('Error:', error);
-            if (error.statusCode === 401) {
-                const refreshToken = await this.getRefreshToken(id);
-                await this.handleTokenRefresh(refreshToken);
+            const refreshToken = await this.getRefreshToken(id);
+            await this.handleTokenRefresh(refreshToken);
+            try {
                 return await apiCall();
+            } catch (error) {
+                throw error;
             }
-            throw error;
         }
+    }
+
+    /**
+     * Get the number of Spotify API calls made
+     * @returns {number} - The number of Spotify API calls made
+     */
+    getApiCallCount() {
+        return this.apiCallCount;
     }
 
     /**
@@ -263,13 +276,20 @@ class Spotify {
     /**
      * Get the user's top tracks
      * @param {string} id - The user's ID
-     * @param {string} playlistName - The name of the playlist to create
      * @param {number} month - The month to create the playlist for
      * @param {number} year - The year to create the playlist for
+     * @param {string | undefined} playlistName - The name of the playlist to create
      * @returns {Promise} - The created playlist
      * @throws {Error} - Failed to create playlist
      */
-    async createPlaylist(id, playlistName, month, year) {
+    async createPlaylist(id, month, year, playlistName) {
+        if (!playlistName) {
+            console.log('No playlist name');
+            const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
+            playlistName = `Liked Songs from ${monthName} ${year}.`;
+            console.log(playlistName);
+        }
+        console.log('Creating playlist');
         try {
             const songsFromMonth = await this.findLikedFromMonth(id, month, year);
             const playlistDescription = `This playlist is generated with your liked songs from ${month}/${year}.`;

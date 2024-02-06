@@ -54,8 +54,8 @@ app.get('/spotify/recently-played/:id', catchErrors(async (req, res) => {
 }));
 
 app.post('/spotify/create-playlist', catchErrors(async (req, res) => {
-    const { id, playlistName, month, year } = req.body;
-    const playlist = await spotify.createPlaylist(id, playlistName, month, year);
+    const { id, month, year, playlistName } = req.body;
+    const playlist = await spotify.createPlaylist(id, month, year, playlistName);
     res.json(playlist);
 }));
 
