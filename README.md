@@ -38,4 +38,3 @@ This project is still in development and is not yet ready for production. The AP
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-```
