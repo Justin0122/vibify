@@ -4,6 +4,7 @@ Vibify is a Spotify API wrapper designed to handle several Spotify API calls. It
 
 ## Features
 
+- Login with Spotify (get user's access token and refresh token)
 - Get user's Spotify information
 - Get user's currently playing track
 - Get user's top tracks
@@ -31,9 +32,6 @@ To use the Spotify API, you need to set the environment variables in .env.exampl
 ## Usage
 
 To use the Spotify API, you need to create a Spotify Developer account and create an application. After creating an application, you will receive a client ID and a client secret. You will also need to set the redirect URI in the application settings. More information can be found [here](https://developer.spotify.com/documentation/general/guides/app-settings/).
-
-My API expects you to have your own server to handle the authentication process, but this will be built-in in the future.
-
 
 ## Notes
 

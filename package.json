@@ -4,11 +4,17 @@
   "description": "Vibify is a Node.js API that interacts with the Spotify API to fetch user data, currently playing track, top tracks, and other Spotify functionalities.",
   "main": "Vibify.js",
   "scripts": {
-    "start": "node Vibify.js"
+    "start": "node Vibify.js",
+    "createdb": "node db/createdb.js",
+    "migrate": "knex migrate:latest --knexfile db/knexfile.js"
   },
   "dependencies": {
+    "better-sqlite3": "^9.4.0",
     "dotenv": "^16.4.1",
     "express": "^4.18.2",
+    "knex": "^3.1.0",
+    "mysql": "^2.18.1",
+    "pg": "^8.11.3",
     "request": "^2.88.2",
     "spotify-web-api-node": "^5.0.2"
   }

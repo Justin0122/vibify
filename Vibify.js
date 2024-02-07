@@ -30,6 +30,11 @@ function catchErrors(fn) {
 }
 
 function authenticateApiKey(req, res, next) {
+    if (process.env.DEV_MODE === 'true') {
+        console.log(req.originalUrl);
+        next();
+        return;
+    }
     const apiKey = req.headers['x-api-key'];
 
     if (apiKey === API_KEY) {
@@ -38,6 +43,26 @@ function authenticateApiKey(req, res, next) {
         res.status(403).json({ error: 'Unauthorized' });
     }
 }
+
+app.get('/spotify/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) => {
+    const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=user-read-email%20user-read-private%20user-library-read%20user-top-read%20user-read-recently-played%20user-read-currently-playing%20user-follow-read%20playlist-read-private%20playlist-modify-public%20playlist-modify-private%20playlist-read-collaborative%20user-library-modify&state=${req.params.userId}`;
+    res.send(url);
+}));
+
+app.get('/spotify/callback', authenticateApiKey, catchErrors(async (req, res) => {
+    const code = req.query.code; // Extract the authorization code from the request parameters
+    try {
+        const data = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+}));
+
+app.post('/spotify/delete-user', authenticateApiKey, catchErrors(async (req, res) => {
+    const user = await spotify.deleteUser(req.body.id);
+    res.json(user);
+}));
 
 app.get('/spotify/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const user = await spotify.getUser(req.params.id);

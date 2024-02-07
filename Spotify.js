@@ -1,5 +1,17 @@
 const SpotifyWebApi = require('spotify-web-api-node');
 const request = require('request');
+const dotenv = require('dotenv');
+dotenv.config();
+
+const knex = require('knex')({
+    client: 'mysql',
+    connection: {
+        host: '127.0.0.1',
+        user: process.env.DB_USER,
+        password: process.env.DB_PASS,
+        database: 'vibify'
+    },
+});
 
 const max = 25;
 
@@ -72,46 +84,33 @@ class Spotify {
      * @throws {Error} - Failed to retrieve Spotify user
      */
     async getUser(id) {
-        const link = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}`;
-        const options = {
-            url: link,
-            headers: {
-                'User-Agent': 'request',
-            },
-        };
+        try {
+            const user = await knex('users').where('user_id', id).first();
+            if (!user) {
+                throw new Error('User not found in the database.');
+            }
 
-        return new Promise((resolve, reject) => {
-            request.get(options, async (error, response, body) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    const json = JSON.parse(body);
-                    const user = json.data.find((data) => data.attributes.discord_id === id);
-                    try {
-                        this.setSpotifyTokens(user.attributes.spotify_access_token, user.attributes.spotify_refresh_token);
-                    } catch (error) {
-                        reject(new Error('You have not authorized the application.'));
-                    }
+            this.setSpotifyTokens(user.access_token, user.refresh_token);
 
-                    try {
-                        const me = await this.spotifyApi.getMe();
-                        resolve(me.body);
-                    } catch (error) {
-                        try {
-                            await this.handleTokenRefresh(user.attributes.spotify_refresh_token);
-                        } catch (error) {
-                            return;
-                        }
-                        try {
-                            const refreshedMe = await this.spotifyApi.getMe();
-                            resolve(refreshedMe.body);
-                        } catch (error) {
-                            reject(new Error('Failed to retrieve Spotify user after refreshing token.'));
-                        }
-                    }
+            try {
+                const me = await this.spotifyApi.getMe();
+                return me.body;
+            } catch (error) {
+                try {
+                    await this.handleTokenRefresh(user.refresh_token);
+                } catch (error) {
+                    return;
                 }
-            });
-        });
+                try {
+                    const refreshedMe = await this.spotifyApi.getMe();
+                    return refreshedMe.body;
+                } catch (error) {
+                    throw new Error('Failed to retrieve Spotify user after refreshing token.');
+                }
+            }
+        } catch (error) {
+            throw error;
+        }
     }
 
     /**
@@ -408,7 +407,6 @@ class Spotify {
         if (!options.includes(true)) {
             throw new Error('You must select at least one option.');
         }
-        
         const songIds = [];
 
         if (options.includes(true)) {
@@ -526,9 +524,53 @@ class Spotify {
         return topArtistsGenresSorted.slice(0, amount);
     }
 
-    async logout(id) {
-        const url = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}&logout=true`;
-        await fetch(url);
+    /**
+     * @param {string} id - The user's ID
+     * @param {string} access_token - The user's Spotify access token
+     * @param {string} refresh_token - The user's Spotify refresh token
+     * @param {number} expires_in - The time in seconds until the access token expires
+     * @returns {Promise<void>}
+     */
+    async insertUserIntoDatabase(id, access_token, refresh_token, expires_in) {
+        console.log(id, access_token, refresh_token, expires_in);
+        await knex('users').insert({
+            user_id: id,
+            access_token: access_token,
+            refresh_token: refresh_token,
+            expires_in: expires_in
+        }).catch((err) => {
+            console.log("Error inserting user into database: ", err);
+            return err;
+        });
+    }
+
+    /**
+     * @param {string} id - The user's ID
+     * @returns {Promise<void>}
+     */
+    async deleteUser(id) {
+        await knex('users').where('user_id', id).del().catch((err) => {
+            console.log("Error deleting user from database: ", err);
+            return err;
+        });
+    }
+
+    /**
+     * @param {string} code - The authorization code
+     * @param {string} id - The user's ID
+     * @returns {Promise<void>}
+     */
+    async authorizationCodeGrant(code, id) {
+        this.spotifyApi.authorizationCodeGrant(code)
+            .then(
+                async (data) => {
+                    const {access_token, refresh_token, expires_in} = data.body;
+                    await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in);
+                },
+                (err) => {
+                    console.log('Something went wrong!', err);
+                }
+            );
     }
 }
 
