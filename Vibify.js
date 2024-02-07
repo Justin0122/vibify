@@ -44,12 +44,12 @@ function authenticateApiKey(req, res, next) {
     }
 }
 
-app.get('/spotify/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) => {
     const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=user-read-email%20user-read-private%20user-library-read%20user-top-read%20user-read-recently-played%20user-read-currently-playing%20user-follow-read%20playlist-read-private%20playlist-modify-public%20playlist-modify-private%20playlist-read-collaborative%20user-library-modify&state=${req.params.userId}`;
     res.send(url);
 }));
 
-app.get('/spotify/callback', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/callback', authenticateApiKey, catchErrors(async (req, res) => {
     const code = req.query.code; // Extract the authorization code from the request parameters
     try {
         const data = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
@@ -59,45 +59,45 @@ app.get('/spotify/callback', authenticateApiKey, catchErrors(async (req, res) =>
     }
 }));
 
-app.post('/spotify/delete-user', authenticateApiKey, catchErrors(async (req, res) => {
+app.post('/delete-user', authenticateApiKey, catchErrors(async (req, res) => {
     const user = await spotify.deleteUser(req.body.id);
     res.json(user);
 }));
 
-app.get('/spotify/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const user = await spotify.getUser(req.params.id);
     res.json(user);
 }));
 
-app.get('/spotify/currently-playing/:id', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/currently-playing/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const currentlyPlaying = await spotify.getCurrentlyPlaying(req.params.id);
     res.json(currentlyPlaying);
 }));
 
-app.get('/spotify/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const topTracks = await spotify.getTopTracks(req.params.id);
     res.json(topTracks);
 
 }));
 
-app.get('/spotify/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const topArtists = await spotify.getTopArtists(req.params.id);
     res.json(topArtists);
 }));
 
-app.get('/spotify/recently-played/:id', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/recently-played/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const recentlyPlayed = await spotify.getLastListenedTracks(req.params.id);
     res.json(recentlyPlayed);
 }));
 
-app.post('/spotify/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
+app.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
     const { id, month, year, playlistName } = req.body;
     const playlist = await spotify.createPlaylist(id, month, year, playlistName);
     res.json(playlist);
 }));
 
 
-app.post('/spotify/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
+app.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
     const { id, genre, recentlyPlayed, mostPlayed, likedSongs } = req.body;
     const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs);
     res.json(playlist);
