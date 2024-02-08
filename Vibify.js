@@ -49,7 +49,7 @@ app.get('/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) =
     res.send(url);
 }));
 
-app.get('/callback', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/callback', catchErrors(async (req, res) => {
     const code = req.query.code; // Extract the authorization code from the request parameters
     try {
         const data = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));

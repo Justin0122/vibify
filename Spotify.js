@@ -24,14 +24,12 @@ class Spotify {
     /**
      * Create a Spotify object
      * @param {string} secureToken - The secure token for the Spotify API
-     * @param {string} apiUrl - The URL for the Spotify API
      * @param {string} redirectUri - The redirect URI for the Spotify API
      * @param {string} clientId - The client ID for the Spotify API
      * @param {string} clientSecret - The client secret for the Spotify API
      */
-    constructor(secureToken, apiUrl, redirectUri, clientId, clientSecret) {
+    constructor(secureToken, redirectUri, clientId, clientSecret) {
         this.secureToken = secureToken;
-        this.apiUrl = apiUrl;
         this.redirectUri = redirectUri;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
