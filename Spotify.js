@@ -51,6 +51,12 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
+        //get the user's access token and refresh token
+        const user = await knex('users').where('user_id', id).first();
+        if (!user) {
+            throw new Error('User not found in the database.');
+        }
+        this.setSpotifyTokens(user.access_token, user.refresh_token);
         this.apiCallCount++;
         console.log('API call count:', this.apiCallCount);
         try {
