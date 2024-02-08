@@ -119,34 +119,15 @@ class Spotify {
      * @returns {Promise} - The user's Spotify refresh token
      */
     async getRefreshToken(id) {
-        const link = `${this.apiUrl}?id=${id}&secure_token=${this.secureToken}`;
-        const options = {
-            url: link,
-            headers: {
-                'User-Agent': 'request',
-            },
-        };
-
-        return new Promise((resolve, reject) => {
-            request.get(options, async (error, response, body) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    const json = JSON.parse(body);
-                    const user = json.data.find((data) => data.attributes.discord_id === String(id));
-
-                    if (user) {
-                        if (user.attributes.spotify_refresh_token) {
-                            resolve(user.attributes.spotify_refresh_token);
-                        } else {
-                            reject(new Error('User has not authorized the application.'));
-                        }
-                    } else {
-                        reject(new Error('User not found.'));
-                    }
-                }
-            });
-        });
+        try {
+            const user = await knex('users').where('user_id', id).first();
+            if (!user) {
+                throw new Error('User not found in the database.');
+            }
+            return user.refresh_token;
+        } catch (error) {
+            throw error;
+        }
     }
 
 
