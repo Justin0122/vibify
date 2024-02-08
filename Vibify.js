@@ -91,6 +91,7 @@ app.get('/recently-played/:id', authenticateApiKey, catchErrors(async (req, res)
 
 app.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
     const { id, month, year, playlistName } = req.body;
+    console.log(req.body);
     const playlist = await spotify.createPlaylist(id, month, year, playlistName);
     res.json(playlist);
 }));

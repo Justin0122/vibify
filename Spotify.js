@@ -51,7 +51,6 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
-        //get the user's access token and refresh token
         const user = await knex('users').where('user_id', id).first();
         if (!user) {
             throw new Error('User not found in the database.');
@@ -145,6 +144,12 @@ class Spotify {
         try {
             const refreshedTokens = await this.refreshAccessToken(refreshToken);
             this.setSpotifyTokens(refreshedTokens.access_token, refreshedTokens.refresh_token);
+
+            await knex('users').where('refresh_token', refreshToken).update({
+                access_token: refreshedTokens.access_token,
+                refresh_token: refreshedTokens.refresh_token,
+            });
+            return refreshedTokens.access_token;
         } catch (error) {
             throw new Error('Failed to refresh Spotify access token.');
         }
@@ -310,6 +315,7 @@ class Spotify {
      * @throws {Error} - Failed to retrieve liked songs
      */
     async findLikedFromMonth(id, month, year,) {
+        console.log('Finding liked songs from', month, year);
         let likedSongs = [];
         let offset = 0;
         let limit = max;
