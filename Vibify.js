@@ -11,13 +11,12 @@ const API_KEY = process.env.API_KEY;
 
 // Spotify API credentials
 const secureToken = process.env.SPOTIFY_SECURE_TOKEN;
-const apiUrl = process.env.SPOTIFY_API_URL;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
 // Initialize Spotify class
-const spotify = new Spotify(secureToken, apiUrl, redirectUri, clientId, clientSecret);
+const spotify = new Spotify(secureToken, redirectUri, clientId, clientSecret);
 
 
 function catchErrors(fn) {
