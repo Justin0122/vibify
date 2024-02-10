@@ -62,7 +62,7 @@ function createPlaylist() {
     month=$2
     year=$3
     playlistName=$4
-    curl -X POST -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$userId\", \"month\":\"$month\", \"year\":\"$year\", \"playlistName\":\"$playlistName\"}" "$BASE_URL/create-playlist"
+    curl -X POST -H "Content-Type: application/json" "x-api-key: $API_TOKEN" -d "{\"id\":\"$userId\", \"month\":\"$month\", \"year\":\"$year\", \"playlistName\":\"$playlistName\"}" "$BASE_URL/create-playlist"
 }
 
 function recommendations() {

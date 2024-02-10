@@ -108,7 +108,7 @@ class Spotify {
                     const refreshedMe = await this.spotifyApi.getMe();
                     return refreshedMe.body;
                 } catch (error) {
-                    throw new Error('Failed to retrieve Spotify user after refreshing token.');
+                    throw new Error('Failed to retrieve Spotify user after refreshing token: ' + error.message);
                 }
             }
         } catch (error) {
@@ -292,7 +292,7 @@ class Spotify {
             const songUris = songsFromMonth.map((song) => song.track.uri);
             return await this.addTracksToPlaylistAndRetrieve(songUris, playlist, id);
         } catch (error) {
-            throw new Error('Failed to create playlist.');
+            throw new Error('Failed to create playlist: ' + error.message);
         }
     }
 
@@ -315,7 +315,6 @@ class Spotify {
      * @throws {Error} - Failed to retrieve liked songs
      */
     async findLikedFromMonth(id, month, year,) {
-        console.log('Finding liked songs from', month, year);
         let likedSongs = [];
         let offset = 0;
         let limit = max;
