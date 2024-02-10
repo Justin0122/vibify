@@ -1,7 +1,7 @@
 #!/bin/bash
 
-API_TOKEN_FILE="api_token.txt"
-BASE_URL="http://localhost:3000"
+API_TOKEN="${VIBIFY_API_TOKEN}"
+BASE_URL="https://vibify.justinjongstra.nl"
 
 function help() {
     echo "Usage:"
@@ -18,11 +18,12 @@ function help() {
 }
 
 function getApiToken() {
-    cat $API_TOKEN_FILE
+    echo "$API_TOKEN"
 }
 
 function setApiToken() {
-    echo "$1" > $API_TOKEN_FILE
+    token=$1
+    echo "export VIBIFY_API_TOKEN=$token"
 }
 
 function authorize() {
