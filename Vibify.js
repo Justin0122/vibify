@@ -17,14 +17,12 @@ const knex = require('knex')({
     },
 });
 
-// Spotify API credentials
-const secureToken = process.env.SPOTIFY_SECURE_TOKEN;
 const redirectUri = process.env.SPOTIFY_REDIRECT_URI;
 const clientId = process.env.SPOTIFY_CLIENT_ID;
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
 // Initialize Spotify class
-const spotify = new Spotify(secureToken, redirectUri, clientId, clientSecret);
+const spotify = new Spotify(redirectUri, clientId, clientSecret);
 
 
 function catchErrors(fn) {
@@ -62,6 +60,10 @@ async function authenticateApiKey(req, res, next) {
         res.status(403).json({error: 'Unauthorized'});
     }
 }
+
+app.get("/" , (req, res) => {
+    res.status(200).send("Vibify API is running");
+});
 
 app.get('/authorize/:userId', catchErrors(async (req, res) => {
     const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=user-read-email%20user-read-private%20user-library-read%20user-top-read%20user-read-recently-played%20user-read-currently-playing%20user-follow-read%20playlist-read-private%20playlist-modify-public%20playlist-modify-private%20playlist-read-collaborative%20user-library-modify&state=${req.params.userId}`;
