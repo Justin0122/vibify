@@ -27,7 +27,7 @@ function setApiToken() {
 
 function authorize() {
     userId=$1
-    curl -H "x-api-key: $(getApiToken)" "$BASE_URL/authorize/$userId"
+    curl "$BASE_URL/authorize/$userId"
 }
 
 function deleteUser() {

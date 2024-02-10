@@ -52,7 +52,7 @@ async function authenticateApiKey(req, res, next) {
     }
 }
 
-app.get('/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) => {
+app.get('/authorize/:userId', catchErrors(async (req, res) => {
     const url = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=code&redirect_uri=${redirectUri}&scope=user-read-email%20user-read-private%20user-library-read%20user-top-read%20user-read-recently-played%20user-read-currently-playing%20user-follow-read%20playlist-read-private%20playlist-modify-public%20playlist-modify-private%20playlist-read-collaborative%20user-library-modify&state=${req.params.userId}`;
     res.send(url);
 }));
