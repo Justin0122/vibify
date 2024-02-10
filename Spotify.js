@@ -29,7 +29,6 @@ class Spotify {
      * @param {string} clientSecret - The client secret for the Spotify API
      */
     constructor(secureToken, redirectUri, clientId, clientSecret) {
-        this.secureToken = secureToken;
         this.redirectUri = redirectUri;
         this.clientId = clientId;
         this.clientSecret = clientSecret;
@@ -217,14 +216,20 @@ class Spotify {
     /**
      * Get the user's top tracks
      * @param {string} id - The user's ID
-     * @param {number} [amount=25] - The amount of top tracks to retrieve. Default is the value of the constant 'max'.
+     * @param {number} [total=25] - The amount of top tracks to retrieve. Default is the value of the constant 'max'.
+     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
      * @returns {Promise} - The user's top tracks
      * @throws {Error} - Failed to retrieve top tracks
      */
-    async getTopTracks(id, amount = max) {
+    async getTopTracks(id, total = max, random = false) {
         try {
-            const topTracks = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopTracks({limit: amount}), id);
-            return topTracks.body;
+            const offset = random ? Math.floor(Math.random() * total) : 0;
+            const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopTracks({
+                limit: total,
+                offset: offset
+            }), id);
+
+            return likedSongs.body;
         } catch (error) {
             throw new Error('Failed to retrieve top tracks.');
         }
@@ -234,12 +239,14 @@ class Spotify {
      * Get the user's last listened tracks
      * @param {string} id - The user's ID
      * @param {number} [amount=25] - The amount of last listened tracks to retrieve. Default is the value of the constant 'max'.
+     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
      * @returns {Promise} - The user's last listened tracks
      * @throws {Error} - Failed to retrieve last listened tracks
      */
-    async getLastListenedTracks(id, amount = max) {
+    async getLastListenedTracks(id, amount = max, random = false) {
         try {
-            const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({limit: amount}), id);
+            const offset = random ? Math.floor(Math.random() * amount) : 0;
+            const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({limit: amount, offset: offset}), id);
             return lastListened.body;
         } catch (error) {
             throw new Error('Failed to retrieve last listened tracks.');
@@ -301,7 +308,6 @@ class Spotify {
             const uris = songUris.slice(i, i + max);
             await this.makeSpotifyApiCall(() => this.spotifyApi.addTracksToPlaylist(playlist.body.id, uris), id);
         }
-        //get the playlist with the tracks added
         const playlistWithTracks = await this.makeSpotifyApiCall(() => this.spotifyApi.getPlaylist(playlist.body.id), id);
         return playlistWithTracks.body;
     }
@@ -348,12 +354,18 @@ class Spotify {
      * Get the user's top tracks
      * @param {string} id - The user's ID
      * @param {number} [total=25] - The amount of top tracks to retrieve. Default is the value of the constant 'max'.
+     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
      * @returns {Promise} - The user's top tracks
      * @throws {Error} - Failed to retrieve top tracks
      */
-    async getLikedSongs(id, total = max) {
+    async getLikedSongs(id, total = max, random = false) {
         try {
-            const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({limit: total}), id);
+            const offset = random ? Math.floor(Math.random() * total) : 0;
+            const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({
+                limit: total,
+                offset: offset
+            }), id);
+
             return likedSongs.body;
         } catch (error) {
             throw new Error('Failed to retrieve liked songs.');
@@ -383,6 +395,29 @@ class Spotify {
     }
 
     /**
+     * Get the audio features for a playlist
+     * @param {string} playlistId - The ID of the playlist
+     * @param {string} id - The user's ID
+     * @returns {Promise} - The audio features for the specified playlist
+     */
+    async getAudioFeaturesFromPlaylist(playlistId, id) {
+        console.log('Getting audio features from playlist...');
+        const playlistSongs = await this.getSongsFromPlaylist(id, playlistId);
+        const songIds = playlistSongs.body.items.map((song) => song.track.id);
+        return await this.getAudioFeatures(songIds, id);
+    }
+
+    /**
+     * Get the songs from a playlist
+     * @param {string} id - The user's ID
+     * @param {string} playlistId - The ID of the playlist
+     * @returns {Promise} - The songs from the specified playlist
+     */
+    async getSongsFromPlaylist(id, playlistId) {
+        return await this.makeSpotifyApiCall(() => this.spotifyApi.getPlaylistTracks(playlistId), id);
+    }
+
+    /**
      * Creates a recommendation playlist.
      * @param {string} id - The user's ID.
      * @param {Array<string>|string} genre - The genre(s).
@@ -401,15 +436,15 @@ class Spotify {
 
         if (options.includes(true)) {
             if (mostPlayed) {
-                const mostPlayedSongs = await this.getTopTracks(id);
+                const mostPlayedSongs = await this.getTopTracks(id, max, true);
                 songIds.push(...mostPlayedSongs.items.map((song) => song.id));
             }
             if (likedSongs) {
-                const likedSongs = await this.getLikedSongs(id);
+                const likedSongs = await this.getLikedSongs(id, max, true);
                 songIds.push(...likedSongs.items.map((song) => song.track.id));
             }
             if (recentlyPlayed) {
-                const recentlyPlayedSongs = await this.getLastListenedTracks(id);
+                const recentlyPlayedSongs = await this.getLastListenedTracks(id, max, true);
                 songIds.push(...recentlyPlayedSongs.items.map((song) => song.track.id));
             }
 
@@ -443,12 +478,6 @@ class Spotify {
             const randomIndex = Math.floor(Math.random() * songIds.length);
             randomTrackIds.push(songIds[randomIndex]);
         }
-        if (!genre) {
-            await this.getTopGenre(id, 2).then((topGenres) => {
-                genre = topGenres;
-            });
-        }
-
 
         const recommendations = await this.makeSpotifyApiCall(() => this.spotifyApi.getRecommendations({
             ...(genre && {seed_genres: genre}),
@@ -474,15 +503,8 @@ class Spotify {
             max_tempo: highestTempo,
         }), id);
 
-        let genreString;
-        if (typeof genre === 'string') {
-            genreString = genre;
-        } else {
-            genreString = genre.join(', ');
-        }
-
         const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {
-            description: 'Genres: ' + genreString,
+            description: `This playlist is generated based on: ${mostPlayed ? 'most played songs, ' : ''}${likedSongs ? 'liked songs, ' : ''}${recentlyPlayed ? 'recently played songs, ' : ''}.`,
             public: false,
             collaborative: false,
         }), id);
@@ -492,27 +514,6 @@ class Spotify {
         return await this.addTracksToPlaylistAndRetrieve(songUris, playlist, id);
     }
 
-    /**
-     * Get the user's top genre
-     * @param {string} id - The user's ID
-     * @param {number} amount - The amount of top genres to get.
-     * @returns {Promise} - The user's top genres
-     */
-    async getTopGenre(id, amount) {
-        const topArtists = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopArtists({limit: max}), id);
-        const topArtistsGenres = topArtists.body.items.map((artist) => artist.genres);
-        const topArtistsGenresFlat = [].concat.apply([], topArtistsGenres);
-        const topArtistsGenresCount = topArtistsGenresFlat.reduce((acc, genre) => {
-            if (acc[genre]) {
-                acc[genre]++;
-            } else {
-                acc[genre] = 1;
-            }
-            return acc;
-        }, {});
-        const topArtistsGenresSorted = Object.keys(topArtistsGenresCount).sort((a, b) => topArtistsGenresCount[b] - topArtistsGenresCount[a]);
-        return topArtistsGenresSorted.slice(0, amount);
-    }
 
     /**
      * @param {string} id - The user's ID
