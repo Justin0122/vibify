@@ -37,7 +37,7 @@ function catchErrors(fn) {
 }
 
 async function authenticateApiKey(req, res, next) {
-    if (process.env.DEV_MODE === 'false') {
+    if (process.env.DEV_MODE === 'true') {
         console.log(req.originalUrl);
         next();
         return;
@@ -67,8 +67,8 @@ app.get('/callback', catchErrors(async (req, res) => {
     }
 }));
 
-app.post('/delete-user', authenticateApiKey, catchErrors(async (req, res) => {
-    const user = await spotify.deleteUser(req.body.id);
+app.get('/delete-user/:id', authenticateApiKey, catchErrors(async (req, res) => {
+    const user = await spotify.deleteUser(req.params.id);
     res.json(user);
 }));
 

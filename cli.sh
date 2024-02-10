@@ -29,7 +29,7 @@ function authorize() {
 
 function deleteUser() {
     userId=$1
-    curl -X POST -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$userId\"}" "$BASE_URL/delete-user"
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/delete-user/$userId"
 }
 
 function getUser() {
