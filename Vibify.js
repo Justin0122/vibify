@@ -43,7 +43,7 @@ async function authenticateApiKey(req, res, next) {
         return;
     }
     const apiKey = req.headers['x-api-key'];
-    const userId = req.params.id;
+    const userId = req.params.id || req.body.id;
     const user = await knex('users').where('user_id', userId).first();
     if (user.api_token === apiKey) {
         next();
