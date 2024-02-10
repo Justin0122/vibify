@@ -67,11 +67,11 @@ function createPlaylist() {
 
 function recommendations() {
     userId=$1
-    genre=$2
-    recentlyPlayed=$3
-    mostPlayed=$4
-    likedSongs=$5
-    curl -X POST -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$userId\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs}" "$BASE_URL/recommendations"
+    genre=${2:-""}
+    recentlyPlayed=${3:-false}
+    mostPlayed=${4:-true}
+    likedSongs=${5:-true}
+    curl -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$userId\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs}" "$BASE_URL/recommendations"
 }
 
 if [ "$1" == "help" ]; then
