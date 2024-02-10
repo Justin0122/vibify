@@ -28,7 +28,7 @@ const spotify = new Spotify(secureToken, redirectUri, clientId, clientSecret);
 
 
 function catchErrors(fn) {
-    return function(req, res, next) {
+    return function (req, res, next) {
         return fn(req, res, next).catch((err) => {
             console.error(err); // Log the error
             next(err);
@@ -43,6 +43,17 @@ async function authenticateApiKey(req, res, next) {
         return;
     }
     const apiKey = req.headers['x-api-key'];
+    const application_id = req.headers['x-application-id'];
+    if (application_id) {
+        if (application_id === process.env.APPLICATION_ID) {
+            console.log('Application ID is correct');
+            next();
+        } else {
+            res.status(403).json({error: 'Unauthorized'});
+        }
+        return;
+    }
+
     const userId = req.params.id || req.body.id;
     const user = await knex('users').where('user_id', userId).first();
     if (user.api_token === apiKey) {
@@ -61,9 +72,9 @@ app.get('/callback', catchErrors(async (req, res) => {
     const code = req.query.code; // Extract the authorization code from the request parameters
     try {
         const api_token = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
-        res.json({ api_token });
+        res.json({api_token});
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({error: err.message});
     }
 }));
 
@@ -83,13 +94,13 @@ app.get('/currently-playing/:id', authenticateApiKey, catchErrors(async (req, re
 }));
 
 app.get('/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const topTracks = await spotify.getTopTracks(req.params.id);
+    const topTracks = await spotify.getTopTracks(req.params.id, req.query.amount);
     res.json(topTracks);
 
 }));
 
 app.get('/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const topArtists = await spotify.getTopArtists(req.params.id);
+    const topArtists = await spotify.getTopArtists(req.params.id, req.query.amount);
     res.json(topArtists);
 }));
 
@@ -98,15 +109,25 @@ app.get('/recently-played/:id', authenticateApiKey, catchErrors(async (req, res)
     res.json(recentlyPlayed);
 }));
 
+app.get('/last-listened/:id', authenticateApiKey, catchErrors(async (req, res) => {
+    const lastListened = await spotify.getLastListenedTracks(req.params.id, req.query.amount);
+    res.json(lastListened);
+}));
+
+app.get('/audio-features/:playlist/:id', authenticateApiKey, catchErrors(async (req, res) => {
+    const audioFeatures = await spotify.getAudioFeaturesFromPlaylist(req.params.playlist, req.params.id);
+    res.json(audioFeatures);
+}));
+
 app.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
-    const { id, month, year, playlistName } = req.body;
+    const {id, month, year, playlistName} = req.body;
     const playlist = await spotify.createPlaylist(id, month, year, playlistName);
     res.json(playlist);
 }));
 
 
 app.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
-    const { id, genre, recentlyPlayed, mostPlayed, likedSongs } = req.body;
+    const {id, genre, recentlyPlayed, mostPlayed, likedSongs} = req.body;
     const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs);
     res.json(playlist);
 }));
