@@ -246,7 +246,10 @@ class Spotify {
     async getLastListenedTracks(id, amount = max, random = false) {
         try {
             const offset = random ? Math.floor(Math.random() * amount) : 0;
-            const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({limit: amount, offset: offset}), id);
+            const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({
+                limit: amount,
+                offset: offset
+            }), id);
             return lastListened.body;
         } catch (error) {
             throw new Error('Failed to retrieve last listened tracks.');
@@ -503,8 +506,14 @@ class Spotify {
             max_tempo: highestTempo,
         }), id);
 
+        const descriptions = [];
+        if (mostPlayed) descriptions.push('most played songs');
+        if (likedSongs) descriptions.push('liked songs');
+        if (recentlyPlayed) descriptions.push('recently played songs');
+
+        const description = `This playlist is generated based on: ${descriptions.join(', ')}.`;
         const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {
-            description: `This playlist is generated based on: ${mostPlayed ? 'most played songs, ' : ''}${likedSongs ? 'liked songs, ' : ''}${recentlyPlayed ? 'recently played songs, ' : ''}.`,
+            description: description,
             public: false,
             collaborative: false,
         }), id);
