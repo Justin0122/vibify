@@ -7,7 +7,15 @@ app.use(express.json());
 const dotenv = require('dotenv');
 dotenv.config();
 
-const API_KEY = process.env.API_KEY;
+const knex = require('knex')({
+    client: 'mysql',
+    connection: {
+        host: '127.0.0.1',
+        user: process.env.DB_USER,
+        password: process.env.DB_PASS,
+        database: 'vibify'
+    },
+});
 
 // Spotify API credentials
 const secureToken = process.env.SPOTIFY_SECURE_TOKEN;
@@ -28,18 +36,19 @@ function catchErrors(fn) {
     }
 }
 
-function authenticateApiKey(req, res, next) {
-    if (process.env.DEV_MODE === 'true') {
+async function authenticateApiKey(req, res, next) {
+    if (process.env.DEV_MODE === 'false') {
         console.log(req.originalUrl);
         next();
         return;
     }
     const apiKey = req.headers['x-api-key'];
-
-    if (apiKey === API_KEY) {
+    const userId = req.params.id;
+    const user = await knex('users').where('user_id', userId).first();
+    if (user.api_token === apiKey) {
         next();
     } else {
-        res.status(403).json({ error: 'Unauthorized' });
+        res.status(403).json({error: 'Unauthorized'});
     }
 }
 
@@ -51,8 +60,8 @@ app.get('/authorize/:userId', authenticateApiKey, catchErrors(async (req, res) =
 app.get('/callback', catchErrors(async (req, res) => {
     const code = req.query.code; // Extract the authorization code from the request parameters
     try {
-        const data = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
-        res.json(data);
+        const api_token = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
+        res.json({ api_token });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

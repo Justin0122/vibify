@@ -520,15 +520,16 @@ class Spotify {
      * @param {string} access_token - The user's Spotify access token
      * @param {string} refresh_token - The user's Spotify refresh token
      * @param {number} expires_in - The time in seconds until the access token expires
+     * @param {string} api_token - The user's API token
      * @returns {Promise<void>}
      */
-    async insertUserIntoDatabase(id, access_token, refresh_token, expires_in) {
-        console.log(id, access_token, refresh_token, expires_in);
+    async insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token) {
         await knex('users').insert({
             user_id: id,
             access_token: access_token,
             refresh_token: refresh_token,
-            expires_in: expires_in
+            expires_in: expires_in,
+            api_token: api_token,
         }).catch((err) => {
             console.log("Error inserting user into database: ", err);
             return err;
@@ -552,16 +553,21 @@ class Spotify {
      * @returns {Promise<void>}
      */
     async authorizationCodeGrant(code, id) {
-        this.spotifyApi.authorizationCodeGrant(code)
-            .then(
-                async (data) => {
-                    const {access_token, refresh_token, expires_in} = data.body;
-                    await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in);
-                },
-                (err) => {
-                    console.log('Something went wrong!', err);
-                }
-            );
+        return new Promise((resolve, reject) => {
+            this.spotifyApi.authorizationCodeGrant(code)
+                .then(
+                    async (data) => {
+                        const {access_token, refresh_token, expires_in} = data.body;
+                        const api_token = require('crypto').createHash('sha256').update(id + access_token).digest('hex');
+                        await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token);
+                        resolve(api_token);
+                    },
+                    (err) => {
+                        console.log('Something went wrong!', err);
+                        reject(err);
+                    }
+                );
+        });
     }
 }
 
