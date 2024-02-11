@@ -24,7 +24,7 @@ function setApiToken() {
 
 function authorize() {
     userId=$1
-    curl "$BASE_URL/authorize/$userId"
+    curl "$BASE_URL/authorize/$userId" & echo "Copy the token from the browser and run the following command: ./cli.sh setApiToken <token>"
 }
 
 function deleteUser() {
