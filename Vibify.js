@@ -107,7 +107,7 @@ app.get('/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => 
 }));
 
 app.get('/recently-played/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const recentlyPlayed = await spotify.getLastListenedTracks(req.params.id);
+    const recentlyPlayed = await spotify.getLastListenedTracks(req.params.id, req.query.amount);
     res.json(recentlyPlayed);
 }));
 
