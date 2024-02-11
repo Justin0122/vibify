@@ -44,7 +44,6 @@ async function authenticateApiKey(req, res, next) {
     const application_id = req.headers['x-application-id'];
     if (application_id) {
         if (application_id === process.env.APPLICATION_ID) {
-            console.log('Application ID is correct');
             next();
         } else {
             res.status(403).json({error: 'Unauthorized'});

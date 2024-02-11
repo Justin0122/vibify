@@ -1,6 +1,6 @@
 #!/bin/bash
 
-API_TOKEN="${VIBIFY_API_TOKEN}"
+API_TOKEN=""
 BASE_URL="http://localhost:3000"
 
 function help() {
@@ -19,7 +19,7 @@ function help() {
 
 function setApiToken() {
     token=$1
-    echo "export VIBIFY_API_TOKEN=$token" >> ~/.zshrc
+    sed -i "s/API_TOKEN=\".*\"/API_TOKEN=\"$token\"/" "$0"
 }
 
 function authorize() {
