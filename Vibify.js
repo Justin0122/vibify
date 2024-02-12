@@ -61,7 +61,7 @@ async function authenticateApiKey(req, res, next) {
 }
 
 app.get("/" , (req, res) => {
-    res.status(200).send("Vibify API is running");
+    res.status(200).json({message: "Vibify API is running"});
 });
 
 app.get('/authorize/:userId', catchErrors(async (req, res) => {
@@ -128,8 +128,8 @@ app.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) =>
 
 
 app.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
-    const {id, genre, recentlyPlayed, mostPlayed, likedSongs} = req.body;
-    const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs);
+    const {id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying} = req.body;
+    const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying);
     res.json(playlist);
 }));
 

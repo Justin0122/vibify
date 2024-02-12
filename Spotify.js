@@ -426,17 +426,24 @@ class Spotify {
      * @param {boolean} [mostPlayed=true] - Flag indicating whether to include most played songs. Default is true.
      * @param {boolean} [likedSongs=true] - Flag indicating whether to include liked songs. Default is true.
      * @param {boolean} [recentlyPlayed=false] - Flag indicating whether to include recently played songs. Default is false.
+     * @param {boolean} [currentlyPlayingSong=false] - Flag indicating whether to include currently playing song. Default is false.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre, mostPlayed = true, likedSongs = true, recentlyPlayed = false) {
-        const options = [mostPlayed, likedSongs, recentlyPlayed];
+    async createRecommendationPlaylist(id, genre, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false) {
+        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong];
 
         if (!options.includes(true)) {
             throw new Error('You must select at least one option.');
         }
         const songIds = [];
+        let currentlyPlayingId = '';
 
         if (options.includes(true)) {
+            if (currentlyPlayingSong) {
+                const currentlyPlaying = await this.getCurrentlyPlaying(id);
+                songIds.push(currentlyPlaying.item.id);
+                currentlyPlayingId = currentlyPlaying.item.id;
+            }
             if (mostPlayed) {
                 const mostPlayedSongs = await this.getTopTracks(id, max, true);
                 songIds.push(...mostPlayedSongs.items.map((song) => song.id));
@@ -445,12 +452,12 @@ class Spotify {
                 const likedSongs = await this.getLikedSongs(id, max, true);
                 songIds.push(...likedSongs.items.map((song) => song.track.id));
             }
-            if (recentlyPlayed) {
+            if (recentlyPlayed || currentlyPlayingSong) {
                 const recentlyPlayedSongs = await this.getLastListenedTracks(id, max, true);
                 songIds.push(...recentlyPlayedSongs.items.map((song) => song.track.id));
             }
 
-            if (songIds.length === 0) {
+            if (songIds.length === 0 && !currentlyPlayingId) {
                 throw new Error('No songs found.');
             }
         }
@@ -476,9 +483,13 @@ class Spotify {
         let highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
 
         const randomTrackIds = [];
-        for (let i = 0; i < 3; i++) {
+        const randomAmount = currentlyPlayingSong ? 2 : 3;
+        for (let i = 0; i < randomAmount; i++) {
             const randomIndex = Math.floor(Math.random() * songIds.length);
             randomTrackIds.push(songIds[randomIndex]);
+        }
+        if (currentlyPlayingSong) {
+            randomTrackIds.push(currentlyPlayingId);
         }
 
         const recommendations = await this.makeSpotifyApiCall(() => this.spotifyApi.getRecommendations({
@@ -509,6 +520,7 @@ class Spotify {
         if (mostPlayed) descriptions.push('most played songs');
         if (likedSongs) descriptions.push('liked songs');
         if (recentlyPlayed) descriptions.push('recently played songs');
+        if (currentlyPlayingSong) descriptions.push('currently playing song & recently played songs');
 
         const description = `This playlist is generated based on: ${descriptions.join(', ')}.`;
         const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {

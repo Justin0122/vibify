@@ -15,7 +15,7 @@ function help() {
     echo "./cli.sh topArtists [amount]"
     echo "./cli.sh recentlyPlayed [amount]"
     echo "./cli.sh createPlaylist <month> <year> <playlistName>"
-    echo "./cli.sh recommendations [genre] [recentlyPlayed] [mostPlayed] [likedSongs]"
+    echo "./cli.sh recommendations [genre] [recentlyPlayed] [mostPlayed] [likedSongs] [currentlyPlayingSong]"
 }
 
 function setApiToken() {
@@ -60,6 +60,12 @@ function createPlaylist() {
     month=$1
     year=$2
     playlistName=$3
+
+    if [ -z "$month" ] || [ -z "$year" ]; then
+        echo "Error: You must provide a month and year."
+        return 1
+    fi
+
     curl -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"month\":$month, \"year\":$year, \"playlistName\":\"$playlistName\"}" "$BASE_URL/create-playlist" | jq '{playlistId: .id, playlistName: .name, playlistUrl: .external_urls}'
 }
 
@@ -68,8 +74,18 @@ function recommendations() {
     recentlyPlayed=${2:-false}
     mostPlayed=${3:-true}
     likedSongs=${4:-true}
-    curl -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs}" "$BASE_URL/recommendations" | jq '.tracks.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, added_at: .added_at, external_urls: .track.external_urls}'
+    currentlyPlayingSong=${5:-false}
+
+    if [ "$recentlyPlayed" = false ] && [ "$mostPlayed" = false ] && [ "$likedSongs" = false ] && [ "$currentlyPlayingSong" = false ]; then
+        echo "Error: You must select at least one option."
+        return 1
+    fi
+
+    response=$(curl -s -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs, \"currentlyPlaying\":$currentlyPlayingSong}" "$BASE_URL/recommendations")
+    echo "$response" | jq -r '.tracks.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, external_urls: .track.external_urls}' | jq -s 'sort_by(.duration) | .[]'
+    echo "Playlist URL: $(echo "$response" | jq -r '.external_urls.spotify')"
 }
+
 
 if [ "$1" == "help" ]; then
     help
