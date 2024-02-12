@@ -519,8 +519,8 @@ class Spotify {
         const descriptions = [];
         if (mostPlayed) descriptions.push('most played songs');
         if (likedSongs) descriptions.push('liked songs');
-        if (recentlyPlayed) descriptions.push('recently played songs');
-        if (currentlyPlayingSong) descriptions.push('currently playing song & recently played songs');
+        if (recentlyPlayed && !currentlyPlayingSong) descriptions.push('recently played songs');
+        if (currentlyPlayingSong) descriptions.push('currently playing song,' + recentlyPlayed ? ' and recently played songs' : '');
 
         const description = `This playlist is generated based on: ${descriptions.join(', ')}.`;
         const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {
