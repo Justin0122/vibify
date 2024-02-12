@@ -38,9 +38,7 @@ function authorize() {
 
 function deleteUser() {
     checkIfUserIdIsSet
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/delete-user/$USER_ID"
-    sed -i "s/USER_ID=\".*\"/USER_ID=\"\"/" "$0"
-    sed -i "s/API_TOKEN=\".*\"/API_TOKEN=\"\"/" "$0"
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/delete-user/$USER_ID" & sed -i "s/USER_ID=\".*\"/USER_ID=\"\"/" "$0" && sed -i "s/API_TOKEN=\".*\"/API_TOKEN=\"\"/" "$0"
 }
 
 function getUser() {
