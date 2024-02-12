@@ -18,6 +18,13 @@ function help() {
     echo "./cli.sh recommendations [genre] [recentlyPlayed] [mostPlayed] [likedSongs] [currentlyPlayingSong]"
 }
 
+function checkIfUserIdIsSet() {
+    if [ -z "$USER_ID" ]; then
+        echo "Error: User ID is not set. Run the following command to set the user ID: ./cli.sh authorize <userId>"
+        return 1
+    fi
+}
+
 function setApiToken() {
     token=$1
     sed -i "s/API_TOKEN=\".*\"/API_TOKEN=\"$token\"/" "$0"
@@ -30,33 +37,42 @@ function authorize() {
 }
 
 function deleteUser() {
+    checkIfUserIdIsSet
     curl -H "x-api-key: $API_TOKEN" "$BASE_URL/delete-user/$USER_ID"
+    sed -i "s/USER_ID=\".*\"/USER_ID=\"\"/" "$0"
+    sed -i "s/API_TOKEN=\".*\"/API_TOKEN=\"\"/" "$0"
 }
 
 function getUser() {
+    checkIfUserIdIsSet
     curl -H "x-api-key: $API_TOKEN" "$BASE_URL/user/$USER_ID" | jq '{display_name: .display_name, external_urls: .external_urls, followers: .followers, country: .country, product: .product, email: .email}'
 }
 
 function currentlyPlaying() {
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/currently-playing/$USER_ID" | jq '{name: .item.name, artists: [.item.artists[].name], album: .item.album.name, duration: .item.duration_ms, popularity: .item.popularity, external_urls: .item.external_urls, progress: .progress_ms, progress_bar: (("#" * (.progress_ms / .item.duration_ms * 100 | floor)) + ("-" * (100 - (.progress_ms / .item.duration_ms * 100 | floor))))}'
+    checkIfUserIdIsSet
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/currently-playing/$USER_ID" | jq '{name: .item.name, artists: [.item.artists[].name], artist_urls: [.item.artists[].external_urls.spotify], album: .item.album.name, duration: .item.duration_ms, popularity: .item.popularity, external_urls: .item.external_urls, progress: .progress_ms, progress_bar: (("#" * (.progress_ms / .item.duration_ms * 100 | floor)) + ("-" * (100 - (.progress_ms / .item.duration_ms * 100 | floor))))}'
 }
 
 function topTracks() {
+  checkIfUserIdIsSet
     amount=${1:-20}
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-tracks/$USER_ID?amount=$amount" | jq '.items[] | {name: .name, artists: [.artists[].name], album: .album.name, duration: .duration_ms, popularity: .popularity, external_urls: .external_urls}'
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-tracks/$USER_ID?amount=$amount" | jq '.items[] | {name: .name, artists: [.artists[].name], artist_urls: [.artists[].external_urls.spotify], album: .album.name, duration: .duration_ms, popularity: .popularity, external_urls: .external_urls}'
 }
 
 function topArtists() {
+  checkIfUserIdIsSet
     amount=${1:-20}
     curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-artists/$USER_ID?amount=$amount" | jq '.items[] | {name: .name, genres: .genres, popularity: .popularity, external_urls: .external_urls}'
 }
 
 function recentlyPlayed() {
+  checkIfUserIdIsSet
     amount=${1:-20}
     curl -H "x-api-key: $API_TOKEN" "$BASE_URL/recently-played/$USER_ID?amount=$amount" | jq '.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, played_at: .played_at, external_urls: .track.external_urls}'
 }
 
 function createPlaylist() {
+  checkIfUserIdIsSet
     month=$1
     year=$2
     playlistName=$3
@@ -70,6 +86,7 @@ function createPlaylist() {
 }
 
 function recommendations() {
+  checkIfUserIdIsSet
     genre=${1:-""}
     recentlyPlayed=${2:-false}
     mostPlayed=${3:-true}
@@ -82,7 +99,7 @@ function recommendations() {
     fi
 
     response=$(curl -s -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs, \"currentlyPlaying\":$currentlyPlayingSong}" "$BASE_URL/recommendations")
-    echo "$response" | jq -r '.tracks.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, external_urls: .track.external_urls}' | jq -s 'sort_by(.duration) | .[]'
+    echo "$response" | jq -r '.tracks.items[] | {name: .track.name, artists: [.track.artists[].name], artist_urls: [.track.artists[].external_urls.spotify], album: .track.album.name, duration: .track.duration_ms, external_urls: .track.external_urls}' | jq -s 'sort_by(.duration) | .[]'
     echo "Playlist URL: $(echo "$response" | jq -r '.external_urls.spotify')"
 }
 
