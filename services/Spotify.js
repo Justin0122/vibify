@@ -453,8 +453,8 @@ async getRefreshToken(id) {
             }
         }
 
-        let audioFeaturesFromSongs;
-        if (useAudioFeatures){
+        let audioFeaturesFromSongs = {};
+        if (useAudioFeatures && songIds.length > 0) {
         const audioFeatures = await this.getAudioFeatures(songIds, id);
         audioFeaturesFromSongs.lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
         audioFeaturesFromSongs.highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
