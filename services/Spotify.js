@@ -1,17 +1,6 @@
 const SpotifyWebApi = require('spotify-web-api-node');
 const request = require('request');
-const dotenv = require('dotenv');
-dotenv.config();
-
-const knex = require('knex')({
-    client: 'mysql',
-    connection: {
-        host: '127.0.0.1',
-        user: process.env.DB_USER,
-        password: process.env.DB_PASS,
-        database: 'vibify'
-    },
-});
+const db = require('../db/database.js');
 
 const max = 25;
 
@@ -23,14 +12,14 @@ const max = 25;
 class Spotify {
     /**
      * Create a Spotify object
-     * @param {string} redirectUri - The redirect URI for the Spotify API
-     * @param {string} clientId - The client ID for the Spotify API
-     * @param {string} clientSecret - The client secret for the Spotify API
+     * @constructor
+     * @constructs Spotify
+     * @returns {Spotify} - The Spotify object
      */
-    constructor(redirectUri, clientId, clientSecret) {
-        this.redirectUri = redirectUri;
-        this.clientId = clientId;
-        this.clientSecret = clientSecret;
+    constructor() {
+        this.redirectUri = process.env.SPOTIFY_REDIRECT_URI;
+        this.clientId = process.env.SPOTIFY_CLIENT_ID;
+        this.clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
 
         this.apiCallCount = 0;
 
@@ -49,7 +38,7 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
-        const user = await knex('users').where('user_id', id).first();
+        const user = await db('users').where('user_id', id).first();
         if (!user) {
             throw new Error('User not found in the database.');
         }
@@ -85,33 +74,40 @@ class Spotify {
      * @throws {Error} - Failed to retrieve Spotify user
      */
     async getUser(id) {
+        let user;
         try {
-            const user = await knex('users').where('user_id', id).first();
-            if (!user) {
-                throw new Error('User not found in the database.');
-            }
+            user = await db('users').where('user_id', id).first();
+        } catch (error) {
+            throw new Error('Error while fetching user from the database: ' + error.message);
+        }
 
-            this.setSpotifyTokens(user.access_token, user.refresh_token);
+        if (!user) {
+            throw new Error('User not found in the database.');
+        }
+
+        this.setSpotifyTokens(user.access_token, user.refresh_token);
+
+        let me;
+        try {
+            me = await this.spotifyApi.getMe();
+        } catch (error) {
+            console.log('Error while fetching Spotify user: ' + error.message);
+            console.log('Attempting to refresh token and retry...');
 
             try {
-                const me = await this.spotifyApi.getMe();
-                return me.body;
+                await this.handleTokenRefresh(user.refresh_token);
             } catch (error) {
-                try {
-                    await this.handleTokenRefresh(user.refresh_token);
-                } catch (error) {
-                    return;
-                }
-                try {
-                    const refreshedMe = await this.spotifyApi.getMe();
-                    return refreshedMe.body;
-                } catch (error) {
-                    throw new Error('Failed to retrieve Spotify user after refreshing token: ' + error.message);
-                }
+                throw new Error('Failed to refresh Spotify token: ' + error.message);
             }
-        } catch (error) {
-            throw error;
+
+            try {
+                me = await this.spotifyApi.getMe();
+            } catch (error) {
+                throw new Error('Failed to retrieve Spotify user after refreshing token: ' + error.message);
+            }
         }
+
+        return me.body;
     }
 
     /**
@@ -119,18 +115,13 @@ class Spotify {
      * @param {string} id - The user's ID
      * @returns {Promise} - The user's Spotify refresh token
      */
-    async getRefreshToken(id) {
-        try {
-            const user = await knex('users').where('user_id', id).first();
-            if (!user) {
-                throw new Error('User not found in the database.');
-            }
-            return user.refresh_token;
-        } catch (error) {
-            throw error;
-        }
+async getRefreshToken(id) {
+    const user = await db('users').where('user_id', id).first();
+    if (!user) {
+        throw new Error('User not found in the database.');
     }
-
+    return user.refresh_token;
+}
 
     /**
      * Handle token refresh
@@ -143,7 +134,7 @@ class Spotify {
             const refreshedTokens = await this.refreshAccessToken(refreshToken);
             this.setSpotifyTokens(refreshedTokens.access_token, refreshedTokens.refresh_token);
 
-            await knex('users').where('refresh_token', refreshToken).update({
+            await db('users').where('refresh_token', refreshToken).update({
                 access_token: refreshedTokens.access_token,
                 refresh_token: refreshedTokens.refresh_token,
             });
@@ -403,7 +394,6 @@ class Spotify {
      * @returns {Promise} - The audio features for the specified playlist
      */
     async getAudioFeaturesFromPlaylist(playlistId, id) {
-        console.log('Getting audio features from playlist...');
         const playlistSongs = await this.getSongsFromPlaylist(id, playlistId);
         const songIds = playlistSongs.body.items.map((song) => song.track.id);
         return await this.getAudioFeatures(songIds, id);
@@ -544,7 +534,7 @@ class Spotify {
      * @returns {Promise<void>}
      */
     async insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token) {
-        await knex('users').insert({
+        await db('users').insert({
             user_id: id,
             access_token: access_token,
             refresh_token: refresh_token,
@@ -561,7 +551,7 @@ class Spotify {
      * @returns {Promise<void>}
      */
     async deleteUser(id) {
-        await knex('users').where('user_id', id).del().catch((err) => {
+        await db('users').where('user_id', id).del().catch((err) => {
             console.log("Error deleting user from database: ", err);
             return err;
         });
