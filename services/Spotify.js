@@ -422,7 +422,7 @@ class Spotify {
      * @returns {Promise} - The created recommendation playlist.
      */
     async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true, targetValues = {}) {
-        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
+        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures];
         if (!options.includes(true)) {
             throw new Error('You must select at least one option.');
         }
