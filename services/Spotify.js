@@ -421,10 +421,11 @@ class Spotify {
      * @param {Object} [targetValues={}] - The target values for audio features.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true, targetValues = {}) {
-        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures];
-        if (!options.includes(true)) {
-            throw new Error('You must select at least one option.');
+    async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues) {
+        console.log('Options:', {id, genre, mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, targetValues});
+        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
+        if (options.every((option) => !option)) {
+            throw new Error('No options selected.');
         }
         const songIds = [];
         let currentlyPlayingId = '';
@@ -488,7 +489,7 @@ class Spotify {
 
         const recommendations = await this.makeSpotifyApiCall(() => this.spotifyApi.getRecommendations({
             ...(genre && {seed_genres: genre}),
-            seed_tracks: randomTrackIds,
+            ...(randomTrackIds.length > 0 && {seed_tracks: randomTrackIds}),
             limit: 50,
             ...(useAudioFeatures && {
                 min_danceability: audioFeaturesFromSongs.lowestDanceability,
@@ -517,7 +518,8 @@ class Spotify {
         if (mostPlayed) descriptions.push('most played songs');
         if (likedSongs) descriptions.push('liked songs');
         if (recentlyPlayed && !currentlyPlayingSong) descriptions.push('recently played songs');
-        if (currentlyPlayingSong) descriptions.push('currently playing song,' + recentlyPlayed ? ' and recently played songs' : '');
+        if (currentlyPlayingSong) descriptions.push('currently playing song,' + recentlyPlayed ? ' & recently played songs' : '');
+        if (useAudioFeatures) descriptions.push('audio features');
 
         const description = `This playlist is generated based on: ${descriptions.join(', ')}.`;
         const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {
