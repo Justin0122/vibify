@@ -418,9 +418,10 @@ async getRefreshToken(id) {
      * @param {boolean} [recentlyPlayed=false] - Flag indicating whether to include recently played songs. Default is false.
      * @param {boolean} [currentlyPlayingSong=false] - Flag indicating whether to include currently playing song. Default is false.
      * @param {boolean} [useAudioFeatures=false] - Flag indicating whether to use audio features for recommendations. Default is true.
+     * @param {Object} [targetValues={}] - The target values for audio features.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true) {
+    async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true, targetValues = {}) {
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
 
         if (!options.includes(true)) {
@@ -509,7 +510,17 @@ async getRefreshToken(id) {
                 max_valence: audioFeaturesFromSongs.highestValence,
                 min_tempo: audioFeaturesFromSongs.lowestTempo,
                 max_tempo: audioFeaturesFromSongs.highestTempo,
-            })
+            }),
+            target_danceability: targetValues.danceability,
+            target_energy: targetValues.energy,
+            target_instrumentalness: targetValues.instrumentalness,
+            target_liveness: targetValues.liveness,
+            target_loudness: targetValues.loudness,
+            target_tempo: targetValues.tempo,
+            target_valence: targetValues.valence,
+            target_popularity: targetValues.popularity,
+            target_key: targetValues.key,
+            target_mode: targetValues.mode,
         }), id);
 
         const descriptions = [];
