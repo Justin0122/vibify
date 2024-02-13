@@ -115,13 +115,13 @@ class Spotify {
      * @param {string} id - The user's ID
      * @returns {Promise} - The user's Spotify refresh token
      */
-async getRefreshToken(id) {
-    const user = await db('users').where('user_id', id).first();
-    if (!user) {
-        throw new Error('User not found in the database.');
+    async getRefreshToken(id) {
+        const user = await db('users').where('user_id', id).first();
+        if (!user) {
+            throw new Error('User not found in the database.');
+        }
+        return user.refresh_token;
     }
-    return user.refresh_token;
-}
 
     /**
      * Handle token refresh
@@ -423,7 +423,6 @@ async getRefreshToken(id) {
      */
     async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true, targetValues = {}) {
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
-
         if (!options.includes(true)) {
             throw new Error('You must select at least one option.');
         }
@@ -456,25 +455,25 @@ async getRefreshToken(id) {
 
         let audioFeaturesFromSongs = {};
         if (useAudioFeatures && songIds.length > 0) {
-        const audioFeatures = await this.getAudioFeatures(songIds, id);
-        audioFeaturesFromSongs.lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
-        audioFeaturesFromSongs.highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
-        audioFeaturesFromSongs.lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
-        audioFeaturesFromSongs.highestEnergy = Math.max(...audioFeatures.map((track) => track.energy));
-        audioFeaturesFromSongs.lowestLoudness = Math.min(...audioFeatures.map((track) => track.loudness));
-        audioFeaturesFromSongs.highestLoudness = Math.max(...audioFeatures.map((track) => track.loudness));
-        audioFeaturesFromSongs.lowestSpeechiness = Math.min(...audioFeatures.map((track) => track.speechiness));
-        audioFeaturesFromSongs.highestSpeechiness = Math.max(...audioFeatures.map((track) => track.speechiness));
-        audioFeaturesFromSongs.lowestAcousticness = Math.min(...audioFeatures.map((track) => track.acousticness));
-        audioFeaturesFromSongs.highestAcousticness = Math.max(...audioFeatures.map((track) => track.acousticness));
-        audioFeaturesFromSongs.lowestInstrumentalness = Math.min(...audioFeatures.map((track) => track.instrumentalness));
-        audioFeaturesFromSongs.highestInstrumentalness = Math.max(...audioFeatures.map((track) => track.instrumentalness));
-        audioFeaturesFromSongs.lowestLiveness = Math.min(...audioFeatures.map((track) => track.liveness));
-        audioFeaturesFromSongs.highestLiveness = Math.max(...audioFeatures.map((track) => track.liveness));
-        audioFeaturesFromSongs.lowestValence = Math.min(...audioFeatures.map((track) => track.valence));
-        audioFeaturesFromSongs.highestValence = Math.max(...audioFeatures.map((track) => track.valence));
-        audioFeaturesFromSongs.lowestTempo = Math.min(...audioFeatures.map((track) => track.tempo));
-        audioFeaturesFromSongs.highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
+            const audioFeatures = await this.getAudioFeatures(songIds, id);
+            audioFeaturesFromSongs.lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
+            audioFeaturesFromSongs.highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
+            audioFeaturesFromSongs.lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
+            audioFeaturesFromSongs.highestEnergy = Math.max(...audioFeatures.map((track) => track.energy));
+            audioFeaturesFromSongs.lowestLoudness = Math.min(...audioFeatures.map((track) => track.loudness));
+            audioFeaturesFromSongs.highestLoudness = Math.max(...audioFeatures.map((track) => track.loudness));
+            audioFeaturesFromSongs.lowestSpeechiness = Math.min(...audioFeatures.map((track) => track.speechiness));
+            audioFeaturesFromSongs.highestSpeechiness = Math.max(...audioFeatures.map((track) => track.speechiness));
+            audioFeaturesFromSongs.lowestAcousticness = Math.min(...audioFeatures.map((track) => track.acousticness));
+            audioFeaturesFromSongs.highestAcousticness = Math.max(...audioFeatures.map((track) => track.acousticness));
+            audioFeaturesFromSongs.lowestInstrumentalness = Math.min(...audioFeatures.map((track) => track.instrumentalness));
+            audioFeaturesFromSongs.highestInstrumentalness = Math.max(...audioFeatures.map((track) => track.instrumentalness));
+            audioFeaturesFromSongs.lowestLiveness = Math.min(...audioFeatures.map((track) => track.liveness));
+            audioFeaturesFromSongs.highestLiveness = Math.max(...audioFeatures.map((track) => track.liveness));
+            audioFeaturesFromSongs.lowestValence = Math.min(...audioFeatures.map((track) => track.valence));
+            audioFeaturesFromSongs.highestValence = Math.max(...audioFeatures.map((track) => track.valence));
+            audioFeaturesFromSongs.lowestTempo = Math.min(...audioFeatures.map((track) => track.tempo));
+            audioFeaturesFromSongs.highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
         }
 
         const randomTrackIds = [];
@@ -511,16 +510,7 @@ async getRefreshToken(id) {
                 min_tempo: audioFeaturesFromSongs.lowestTempo,
                 max_tempo: audioFeaturesFromSongs.highestTempo,
             }),
-            target_danceability: targetValues.danceability,
-            target_energy: targetValues.energy,
-            target_instrumentalness: targetValues.instrumentalness,
-            target_liveness: targetValues.liveness,
-            target_loudness: targetValues.loudness,
-            target_tempo: targetValues.tempo,
-            target_valence: targetValues.valence,
-            target_popularity: targetValues.popularity,
-            target_key: targetValues.key,
-            target_mode: targetValues.mode,
+            ...Object.fromEntries(Object.entries(targetValues).filter(([key, value]) => value !== '').map(([key, value]) => [`target_${key}`, value]))
         }), id);
 
         const descriptions = [];
