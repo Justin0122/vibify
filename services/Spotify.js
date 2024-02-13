@@ -422,7 +422,6 @@ class Spotify {
      * @returns {Promise} - The created recommendation playlist.
      */
     async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues) {
-        console.log('Options:', {id, genre, mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, targetValues});
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
         if (options.every((option) => !option)) {
             throw new Error('No options selected.');
