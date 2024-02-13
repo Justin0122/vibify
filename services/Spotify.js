@@ -419,9 +419,10 @@ class Spotify {
      * @param {boolean} [currentlyPlayingSong=false] - Flag indicating whether to include currently playing song. Default is false.
      * @param {boolean} [useAudioFeatures=false] - Flag indicating whether to use audio features for recommendations. Default is true.
      * @param {Object} [targetValues={}] - The target values for audio features.
+     * @param {boolean} [useTrackSeeds=false] - Flag indicating whether to use track seeds to create the playlist. Default is false.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues) {
+    async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues, useTrackSeeds) {
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
         if (options.every((option) => !option)) {
             throw new Error('No options selected.');
@@ -488,7 +489,7 @@ class Spotify {
 
         const recommendations = await this.makeSpotifyApiCall(() => this.spotifyApi.getRecommendations({
             ...(genre && {seed_genres: genre}),
-            ...(randomTrackIds.length > 0 && {seed_tracks: randomTrackIds}),
+            ...(useTrackSeeds && {seed_tracks: randomTrackIds}),
             limit: 50,
             ...(useAudioFeatures && {
                 min_danceability: audioFeaturesFromSongs.lowestDanceability,
