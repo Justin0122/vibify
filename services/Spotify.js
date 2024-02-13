@@ -417,10 +417,11 @@ async getRefreshToken(id) {
      * @param {boolean} [likedSongs=true] - Flag indicating whether to include liked songs. Default is true.
      * @param {boolean} [recentlyPlayed=false] - Flag indicating whether to include recently played songs. Default is false.
      * @param {boolean} [currentlyPlayingSong=false] - Flag indicating whether to include currently playing song. Default is false.
+     * @param {boolean} [useAudioFeatures=false] - Flag indicating whether to use audio features for recommendations. Default is true.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false) {
-        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong];
+    async createRecommendationPlaylist(id, genre = null, mostPlayed = true, likedSongs = true, recentlyPlayed = false, currentlyPlayingSong = false, useAudioFeatures = true) {
+        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
 
         if (!options.includes(true)) {
             throw new Error('You must select at least one option.');
@@ -452,25 +453,28 @@ async getRefreshToken(id) {
             }
         }
 
+        let audioFeaturesFromSongs;
+        if (useAudioFeatures){
         const audioFeatures = await this.getAudioFeatures(songIds, id);
-        let lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
-        let highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
-        let lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
-        let highestEnergy = Math.max(...audioFeatures.map((track) => track.energy));
-        let lowestLoudness = Math.min(...audioFeatures.map((track) => track.loudness));
-        let highestLoudness = Math.max(...audioFeatures.map((track) => track.loudness));
-        let lowestSpeechiness = Math.min(...audioFeatures.map((track) => track.speechiness));
-        let highestSpeechiness = Math.max(...audioFeatures.map((track) => track.speechiness));
-        let lowestAcousticness = Math.min(...audioFeatures.map((track) => track.acousticness));
-        let highestAcousticness = Math.max(...audioFeatures.map((track) => track.acousticness));
-        let lowestInstrumentalness = Math.min(...audioFeatures.map((track) => track.instrumentalness));
-        let highestInstrumentalness = Math.max(...audioFeatures.map((track) => track.instrumentalness));
-        let lowestLiveness = Math.min(...audioFeatures.map((track) => track.liveness));
-        let highestLiveness = Math.max(...audioFeatures.map((track) => track.liveness));
-        let lowestValence = Math.min(...audioFeatures.map((track) => track.valence));
-        let highestValence = Math.max(...audioFeatures.map((track) => track.valence));
-        let lowestTempo = Math.min(...audioFeatures.map((track) => track.tempo));
-        let highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
+        audioFeaturesFromSongs.lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
+        audioFeaturesFromSongs.highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
+        audioFeaturesFromSongs.lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
+        audioFeaturesFromSongs.highestEnergy = Math.max(...audioFeatures.map((track) => track.energy));
+        audioFeaturesFromSongs.lowestLoudness = Math.min(...audioFeatures.map((track) => track.loudness));
+        audioFeaturesFromSongs.highestLoudness = Math.max(...audioFeatures.map((track) => track.loudness));
+        audioFeaturesFromSongs.lowestSpeechiness = Math.min(...audioFeatures.map((track) => track.speechiness));
+        audioFeaturesFromSongs.highestSpeechiness = Math.max(...audioFeatures.map((track) => track.speechiness));
+        audioFeaturesFromSongs.lowestAcousticness = Math.min(...audioFeatures.map((track) => track.acousticness));
+        audioFeaturesFromSongs.highestAcousticness = Math.max(...audioFeatures.map((track) => track.acousticness));
+        audioFeaturesFromSongs.lowestInstrumentalness = Math.min(...audioFeatures.map((track) => track.instrumentalness));
+        audioFeaturesFromSongs.highestInstrumentalness = Math.max(...audioFeatures.map((track) => track.instrumentalness));
+        audioFeaturesFromSongs.lowestLiveness = Math.min(...audioFeatures.map((track) => track.liveness));
+        audioFeaturesFromSongs.highestLiveness = Math.max(...audioFeatures.map((track) => track.liveness));
+        audioFeaturesFromSongs.lowestValence = Math.min(...audioFeatures.map((track) => track.valence));
+        audioFeaturesFromSongs.highestValence = Math.max(...audioFeatures.map((track) => track.valence));
+        audioFeaturesFromSongs.lowestTempo = Math.min(...audioFeatures.map((track) => track.tempo));
+        audioFeaturesFromSongs.highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
+        }
 
         const randomTrackIds = [];
         const randomAmount = currentlyPlayingSong ? 2 : 3;
@@ -486,24 +490,26 @@ async getRefreshToken(id) {
             ...(genre && {seed_genres: genre}),
             seed_tracks: randomTrackIds,
             limit: 50,
-            min_danceability: lowestDanceability,
-            max_danceability: highestDanceability,
-            min_energy: lowestEnergy,
-            max_energy: highestEnergy,
-            min_loudness: lowestLoudness,
-            max_loudness: highestLoudness,
-            min_speechiness: lowestSpeechiness,
-            max_speechiness: highestSpeechiness,
-            min_acousticness: lowestAcousticness,
-            max_acousticness: highestAcousticness,
-            min_instrumentalness: lowestInstrumentalness,
-            max_instrumentalness: highestInstrumentalness,
-            min_liveness: lowestLiveness,
-            max_liveness: highestLiveness,
-            min_valence: lowestValence,
-            max_valence: highestValence,
-            min_tempo: lowestTempo,
-            max_tempo: highestTempo,
+            ...(useAudioFeatures && {
+                min_danceability: audioFeaturesFromSongs.lowestDanceability,
+                max_danceability: audioFeaturesFromSongs.highestDanceability,
+                min_energy: audioFeaturesFromSongs.lowestEnergy,
+                max_energy: audioFeaturesFromSongs.highestEnergy,
+                min_loudness: audioFeaturesFromSongs.lowestLoudness,
+                max_loudness: audioFeaturesFromSongs.highestLoudness,
+                min_speechiness: audioFeaturesFromSongs.lowestSpeechiness,
+                max_speechiness: audioFeaturesFromSongs.highestSpeechiness,
+                min_acousticness: audioFeaturesFromSongs.lowestAcousticness,
+                max_acousticness: audioFeaturesFromSongs.highestAcousticness,
+                min_instrumentalness: audioFeaturesFromSongs.lowestInstrumentalness,
+                max_instrumentalness: audioFeaturesFromSongs.highestInstrumentalness,
+                min_liveness: audioFeaturesFromSongs.lowestLiveness,
+                max_liveness: audioFeaturesFromSongs.highestLiveness,
+                min_valence: audioFeaturesFromSongs.lowestValence,
+                max_valence: audioFeaturesFromSongs.highestValence,
+                min_tempo: audioFeaturesFromSongs.lowestTempo,
+                max_tempo: audioFeaturesFromSongs.highestTempo,
+            })
         }), id);
 
         const descriptions = [];
