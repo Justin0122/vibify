@@ -1,13 +1,11 @@
 const SpotifyWebApi = require('spotify-web-api-node');
 const request = require('request');
+const Recommendations = require('./Recommendations.js');
+const {MAX} = require('../utils/constants');
 const db = require('../db/database.js');
-
-const max = 25;
 
 /**
  * Spotify class to handle all Spotify API calls
- * @class
- * @classdesc Class to handle all Spotify API calls
  */
 class Spotify {
     /**
@@ -28,6 +26,7 @@ class Spotify {
             clientSecret: this.clientSecret,
             redirectUri: this.redirectUri,
         });
+        this.recommendations = new Recommendations(this);
     }
 
     /**
@@ -211,7 +210,7 @@ class Spotify {
      * @returns {Promise} - The user's top tracks
      * @throws {Error} - Failed to retrieve top tracks
      */
-    async getTopTracks(id, total = max, random = false) {
+    async getTopTracks(id, total = MAX, random = false) {
         try {
             const offset = random ? Math.floor(Math.random() * total) : 0;
             const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopTracks({
@@ -233,7 +232,7 @@ class Spotify {
      * @returns {Promise} - The user's last listened tracks
      * @throws {Error} - Failed to retrieve last listened tracks
      */
-    async getLastListenedTracks(id, amount = max, random = false) {
+    async getLastListenedTracks(id, amount = MAX, random = false) {
         try {
             const offset = random ? Math.floor(Math.random() * amount) : 0;
             const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({
@@ -253,7 +252,7 @@ class Spotify {
      * @returns {Promise} - The user's top artists
      * @throws {Error} - Failed to retrieve top artists
      */
-    async getTopArtists(id, amount = max) {
+    async getTopArtists(id, amount = MAX) {
         try {
             const topArtists = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopArtists({limit: amount}), id);
             return topArtists.body;
@@ -297,8 +296,8 @@ class Spotify {
     }
 
     async addTracksToPlaylistAndRetrieve(songUris, playlist, id) {
-        for (let i = 0; i < songUris.length; i += max) {
-            const uris = songUris.slice(i, i + max);
+        for (let i = 0; i < songUris.length; i += MAX) {
+            const uris = songUris.slice(i, i + MAX);
             await this.makeSpotifyApiCall(() => this.spotifyApi.addTracksToPlaylist(playlist.body.id, uris), id);
         }
         const playlistWithTracks = await this.makeSpotifyApiCall(() => this.spotifyApi.getPlaylist(playlist.body.id), id);
@@ -316,7 +315,7 @@ class Spotify {
     async findLikedFromMonth(id, month, year,) {
         let likedSongs = [];
         let offset = 0;
-        let limit = max;
+        let limit = MAX;
         let total = 1;
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
@@ -351,7 +350,7 @@ class Spotify {
      * @returns {Promise} - The user's top tracks
      * @throws {Error} - Failed to retrieve top tracks
      */
-    async getLikedSongs(id, total = max, random = false) {
+    async getLikedSongs(id, total = MAX, random = false) {
         try {
             const offset = random ? Math.floor(Math.random() * total) : 0;
             const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({
@@ -410,132 +409,31 @@ class Spotify {
     }
 
     /**
-     * Creates a recommendation playlist.
+     * Fetches songs based on the condition.
      * @param {string} id - The user's ID.
-     * @param {Array<string>|string} genre - The genre(s).
-     * @param {boolean} [recentlyPlayed=false] - Whether to include recently played tracks.
-     * @param {boolean} [mostPlayed=true] - Whether to include most played tracks.
-     * @param {boolean} [likedSongs=true] - Whether to include liked songs.
-     * @param {boolean} [currentlyPlayingSong=false] - Whether to include currently playing track.
-     * @param {boolean} [useAudioFeatures=true] - Whether to use audio features to create the playlist.
-     * @param {boolean} [useTrackSeeds=false] - Whether to use track seeds to create the playlist.
-     * @param {Object} [targetValues={}] - The target values for audio features.
-     * @returns {Promise} - The created recommendation playlist.
+     * @param {string} condition - The condition to fetch songs based on.
+     * @param {number} max - The maximum amount of songs to fetch.
+     * @param {boolean} random - Whether to fetch random songs.
+     * @returns {Promise} - The fetched songs.
      */
-    async createRecommendationPlaylist(id, genre = null, recentlyPlayed = false, mostPlayed = true, likedSongs = true, currentlyPlayingSong = false, useAudioFeatures = true, useTrackSeeds = false, targetValues = {}) {
-        const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
-        if (genre && genre.includes(',')) {
-            genre = genre.replace(/\s/g, '');
-        }
-        if (options.every((option) => !option)) {
-            throw new Error('No options selected.');
-        }
-        const songIds = [];
-        let currentlyPlayingId = '';
-
-        if (options.includes(true)) {
-            if (currentlyPlayingSong) {
+    async fetchSongs(id, condition, max = MAX, random) {
+        switch (condition) {
+            case 'currentlyPlaying':
                 const currentlyPlaying = await this.getCurrentlyPlaying(id);
-                songIds.push(currentlyPlaying.item.id);
-                currentlyPlayingId = currentlyPlaying.item.id;
-            }
-            if (mostPlayed) {
+                return [currentlyPlaying.item.id];
+            case 'mostPlayed':
                 const mostPlayedSongs = await this.getTopTracks(id, max, true);
-                songIds.push(...mostPlayedSongs.items.map((song) => song.id));
-            }
-            if (likedSongs) {
+                return mostPlayedSongs.items.map((song) => song.id);
+            case 'likedSongs':
                 const likedSongs = await this.getLikedSongs(id, max, true);
-                songIds.push(...likedSongs.items.map((song) => song.track.id));
-            }
-            if (recentlyPlayed || currentlyPlayingSong) {
+                return likedSongs.items.map((song) => song.track.id);
+            case 'recentlyPlayed':
                 const recentlyPlayedSongs = await this.getLastListenedTracks(id, max, true);
-                songIds.push(...recentlyPlayedSongs.items.map((song) => song.track.id));
-            }
-
-            if (songIds.length === 0 && !currentlyPlayingId) {
-                throw new Error('No songs found.');
-            }
+                return recentlyPlayedSongs.items.map((song) => song.track.id);
+            default:
+                return [];
         }
-
-        let audioFeaturesFromSongs = {};
-        if (useAudioFeatures && songIds.length > 0) {
-            const audioFeatures = await this.getAudioFeatures(songIds, id);
-            audioFeaturesFromSongs.lowestDanceability = Math.min(...audioFeatures.map((track) => track.danceability));
-            audioFeaturesFromSongs.highestDanceability = Math.max(...audioFeatures.map((track) => track.danceability));
-            audioFeaturesFromSongs.lowestEnergy = Math.min(...audioFeatures.map((track) => track.energy));
-            audioFeaturesFromSongs.highestEnergy = Math.max(...audioFeatures.map((track) => track.energy));
-            audioFeaturesFromSongs.lowestLoudness = Math.min(...audioFeatures.map((track) => track.loudness));
-            audioFeaturesFromSongs.highestLoudness = Math.max(...audioFeatures.map((track) => track.loudness));
-            audioFeaturesFromSongs.lowestSpeechiness = Math.min(...audioFeatures.map((track) => track.speechiness));
-            audioFeaturesFromSongs.highestSpeechiness = Math.max(...audioFeatures.map((track) => track.speechiness));
-            audioFeaturesFromSongs.lowestAcousticness = Math.min(...audioFeatures.map((track) => track.acousticness));
-            audioFeaturesFromSongs.highestAcousticness = Math.max(...audioFeatures.map((track) => track.acousticness));
-            audioFeaturesFromSongs.lowestInstrumentalness = Math.min(...audioFeatures.map((track) => track.instrumentalness));
-            audioFeaturesFromSongs.highestInstrumentalness = Math.max(...audioFeatures.map((track) => track.instrumentalness));
-            audioFeaturesFromSongs.lowestLiveness = Math.min(...audioFeatures.map((track) => track.liveness));
-            audioFeaturesFromSongs.highestLiveness = Math.max(...audioFeatures.map((track) => track.liveness));
-            audioFeaturesFromSongs.lowestValence = Math.min(...audioFeatures.map((track) => track.valence));
-            audioFeaturesFromSongs.highestValence = Math.max(...audioFeatures.map((track) => track.valence));
-            audioFeaturesFromSongs.lowestTempo = Math.min(...audioFeatures.map((track) => track.tempo));
-            audioFeaturesFromSongs.highestTempo = Math.max(...audioFeatures.map((track) => track.tempo));
-        }
-
-        const randomTrackIds = [];
-        const randomAmount = currentlyPlayingSong ? 2 : 3;
-        for (let i = 0; i < randomAmount; i++) {
-            const randomIndex = Math.floor(Math.random() * songIds.length);
-            randomTrackIds.push(songIds[randomIndex]);
-        }
-        if (currentlyPlayingSong) {
-            randomTrackIds.push(currentlyPlayingId);
-        }
-
-        const recommendations = await this.makeSpotifyApiCall(() => this.spotifyApi.getRecommendations({
-            ...(genre && {seed_genres: genre}),
-            ...(useTrackSeeds && {seed_tracks: randomTrackIds}),
-            limit: 50,
-            ...(useAudioFeatures && {
-                min_danceability: audioFeaturesFromSongs.lowestDanceability,
-                max_danceability: audioFeaturesFromSongs.highestDanceability,
-                min_energy: audioFeaturesFromSongs.lowestEnergy,
-                max_energy: audioFeaturesFromSongs.highestEnergy,
-                min_loudness: audioFeaturesFromSongs.lowestLoudness,
-                max_loudness: audioFeaturesFromSongs.highestLoudness,
-                min_speechiness: audioFeaturesFromSongs.lowestSpeechiness,
-                max_speechiness: audioFeaturesFromSongs.highestSpeechiness,
-                min_acousticness: audioFeaturesFromSongs.lowestAcousticness,
-                max_acousticness: audioFeaturesFromSongs.highestAcousticness,
-                min_instrumentalness: audioFeaturesFromSongs.lowestInstrumentalness,
-                max_instrumentalness: audioFeaturesFromSongs.highestInstrumentalness,
-                min_liveness: audioFeaturesFromSongs.lowestLiveness,
-                max_liveness: audioFeaturesFromSongs.highestLiveness,
-                min_valence: audioFeaturesFromSongs.lowestValence,
-                max_valence: audioFeaturesFromSongs.highestValence,
-                min_tempo: audioFeaturesFromSongs.lowestTempo,
-                max_tempo: audioFeaturesFromSongs.highestTempo,
-            }),
-            ...Object.fromEntries(Object.entries(targetValues).filter(([key, value]) => value !== '').map(([key, value]) => [`target_${key}`, value]))
-        }), id);
-
-        const descriptions = [];
-        if (mostPlayed) descriptions.push('most played songs');
-        if (likedSongs) descriptions.push('liked songs');
-        if (recentlyPlayed && !currentlyPlayingSong) descriptions.push('recently played songs');
-        if (currentlyPlayingSong) descriptions.push('currently playing song,' + recentlyPlayed ? ' & recently played songs' : '');
-        if (useAudioFeatures) descriptions.push('audio features');
-
-        const description = `This playlist is generated based on: ${descriptions.join(', ')}.`;
-        const playlist = await this.makeSpotifyApiCall(() => this.spotifyApi.createPlaylist('Recommendations', {
-            description: description,
-            public: false,
-            collaborative: false,
-        }), id);
-
-        const songUris = recommendations.body.tracks.map((song) => song.uri);
-
-        return await this.addTracksToPlaylistAndRetrieve(songUris, playlist, id);
     }
-
 
     /**
      * @param {string} id - The user's ID
