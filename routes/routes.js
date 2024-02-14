@@ -72,8 +72,8 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
 }));
 
 router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
-    const {id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying, useAudioFeatures, targetValues, useTrackSeeds} = req.body;
-    const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying, useAudioFeatures, targetValues, useTrackSeeds);
+    const {id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying, useAudioFeatures, useTrackSeeds,  targetValues} = req.body;
+    const playlist = await spotify.createRecommendationPlaylist(id, genre, recentlyPlayed, mostPlayed, likedSongs, currentlyPlaying, useAudioFeatures, useTrackSeeds, targetValues);
     res.json(playlist);
 }));
 

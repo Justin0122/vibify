@@ -413,16 +413,16 @@ class Spotify {
      * Creates a recommendation playlist.
      * @param {string} id - The user's ID.
      * @param {Array<string>|string} genre - The genre(s).
-     * @param {boolean} [mostPlayed=true] - Flag indicating whether to include most played songs. Default is true.
-     * @param {boolean} [likedSongs=true] - Flag indicating whether to include liked songs. Default is true.
-     * @param {boolean} [recentlyPlayed=false] - Flag indicating whether to include recently played songs. Default is false.
-     * @param {boolean} [currentlyPlayingSong=false] - Flag indicating whether to include currently playing song. Default is false.
-     * @param {boolean} [useAudioFeatures=false] - Flag indicating whether to use audio features for recommendations. Default is true.
+     * @param {boolean} [recentlyPlayed=false] - Whether to include recently played tracks.
+     * @param {boolean} [mostPlayed=true] - Whether to include most played tracks.
+     * @param {boolean} [likedSongs=true] - Whether to include liked songs.
+     * @param {boolean} [currentlyPlayingSong=false] - Whether to include currently playing track.
+     * @param {boolean} [useAudioFeatures=true] - Whether to use audio features to create the playlist.
+     * @param {boolean} [useTrackSeeds=false] - Whether to use track seeds to create the playlist.
      * @param {Object} [targetValues={}] - The target values for audio features.
-     * @param {boolean} [useTrackSeeds=false] - Flag indicating whether to use track seeds to create the playlist. Default is false.
      * @returns {Promise} - The created recommendation playlist.
      */
-    async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues, useTrackSeeds) {
+    async createRecommendationPlaylist(id, genre = null, recentlyPlayed = false, mostPlayed = true, likedSongs = true, currentlyPlayingSong = false, useAudioFeatures = true, useTrackSeeds = false, targetValues = {}) {
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
         if (genre && genre.includes(',')) {
             genre = genre.replace(/\s/g, '');
