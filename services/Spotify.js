@@ -424,7 +424,7 @@ class Spotify {
      */
     async createRecommendationPlaylist(id, genre, mostPlayed , likedSongs , recentlyPlayed , currentlyPlayingSong , useAudioFeatures , targetValues, useTrackSeeds) {
         const options = [mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, genre];
-        if (genre.includes(',')) {
+        if (genre && genre.includes(',')) {
             genre = genre.replace(/\s/g, '');
         }
         if (options.every((option) => !option)) {
