@@ -61,7 +61,7 @@ class Recommendations {
         }, {});
     }
 
-    #getTargetValues(targetValues) {
+    async #getTargetValues(targetValues) {
         return Object.entries(targetValues).filter(([key, value]) => value !== '').reduce((targets, [key, value]) => {
             targets[`target_${key}`] = value;
             return targets;
