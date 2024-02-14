@@ -427,7 +427,6 @@ class Spotify {
         if (genre.includes(',')) {
             genre = genre.replace(/\s/g, '');
         }
-        console.log("params: ", id, genre, mostPlayed, likedSongs, recentlyPlayed, currentlyPlayingSong, useAudioFeatures, targetValues, useTrackSeeds);
         if (options.every((option) => !option)) {
             throw new Error('No options selected.');
         }
