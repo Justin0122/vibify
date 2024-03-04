@@ -88,7 +88,7 @@ router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res)
         recentlyPlayed: recentlyPlayed,
         mostPlayed: mostPlayed,
         likedSongs: likedSongs,
-        currentlyPlayingSong: currentlyPlaying,
+        currentlyPlaying: currentlyPlaying,
         useAudioFeatures: useAudioFeatures,
         useTrackSeeds: useTrackSeeds,
         targetValues: targetValues
