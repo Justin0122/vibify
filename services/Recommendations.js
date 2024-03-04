@@ -1,4 +1,4 @@
-const {MAX, MAX_RECOMMENDATIONS} = require('../utils/constants');
+const {MAX, MAX_RECOMMENDATIONS, checkAmount} = require('../utils/constants');
 
 class Recommendations {
     constructor(spotify) {
@@ -6,13 +6,13 @@ class Recommendations {
         this.spotifyApi = spotify.spotifyApi;
     }
 
-    async createRecommendationPlaylist(id, options = {}) {
-
+    async createRecommendationPlaylist(id, options = {}, amount = MAX) {
+        amount = checkAmount(amount);
         if (!this.#hasValidOptions(options)) {
             return {error: 'No options selected.'};
         }
 
-        const songIds = await this.#fetchSongsBasedOnConditions(id, options);
+        const songIds = await this.#fetchSongsBasedOnConditions(id, options, amount);
         if (songIds.length === 0) {
             return {error: 'No songs found.'};
         }
@@ -28,11 +28,11 @@ class Recommendations {
         return Object.values(options).some(value => value);
     }
 
-    async #fetchSongsBasedOnConditions(id, options) {
+    async #fetchSongsBasedOnConditions(id, options, amount = MAX) {
         const songIds = [];
         for (const [condition, value] of Object.entries(options)) {
             if (value) {
-                const songs = await this.spotify.fetchSongs(id, condition, MAX, true);
+                const songs = await this.spotify.fetchSongs(id, condition, amount, true);
                 songIds.push(...songs);
             }
         }
