@@ -1,4 +1,4 @@
-const MAX = 25;
+const MAX = 50;
 const MAX_RECOMMENDATIONS = 50;
 
 module.exports = {

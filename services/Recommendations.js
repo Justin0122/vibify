@@ -29,11 +29,18 @@ class Recommendations {
     }
 
     async #fetchSongsBasedOnConditions(id, options, amount = MAX) {
+        const genre = options.genre;
         const songIds = [];
-        for (const [condition, value] of Object.entries(options)) {
+        const conditions = {...options}; // Create a copy of the options object
+        delete conditions.genre; // Remove the genre property from the conditions object
+        for (const [condition, value] of Object.entries(conditions)) {
             if (value) {
-                const songs = await this.spotify.fetchSongs(id, condition, amount, true);
-                songIds.push(...songs);
+                try {
+                    const songs = await this.spotify.fetchSongs(id, condition, amount, true, genre);
+                    songIds.push(...songs);
+                } catch (error) {
+                    console.error(`Error fetching songs for condition ${condition}:`, error);
+                }
             }
         }
         return songIds;

@@ -40,35 +40,24 @@ router.get('/currently-playing/:id', authenticateApiKey, catchErrors(async (req,
     res.json(currentlyPlaying);
 }));
 
-router.get('/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const topTracks = await spotify.getTopTracks(req.params.id, req.query.amount);
-    res.json(topTracks);
-}));
-
 router.get('/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const topArtists = await spotify.getTopArtists(req.params.id, req.query.amount);
     res.json(topArtists);
 }));
 
-router.get('/recently-played/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const recentlyPlayed = await spotify.getLastListenedTracks(req.params.id, req.query.amount);
-    res.json(recentlyPlayed);
+router.get('/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
+    const topTracks = await spotify.getTracks(req.params.id, spotify.spotifyApi.getMyTopTracks.bind(spotify.spotifyApi), req.query.amount);
+    res.json(topTracks);
 }));
 
 router.get('/last-listened/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const lastListened = await spotify.getLastListenedTracks(req.params.id, req.query.amount);
+    const lastListened = await spotify.getTracks(req.params.id, spotify.spotifyApi.getMyRecentlyPlayedTracks.bind(spotify.spotifyApi), req.query.amount);
     res.json(lastListened);
 }));
 
 router.get('/audio-features/:playlist/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const audioFeatures = await spotify.getAudioFeaturesFromPlaylist(req.params.playlist, req.params.id);
     res.json(audioFeatures);
-}));
-
-router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
-    const {id, month, year, playlistName} = req.body;
-    const playlist = await spotify.createPlaylist(id, month, year, playlistName);
-    res.json(playlist);
 }));
 
 router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
@@ -96,6 +85,18 @@ router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res)
         targetValues: targetValues
     }, amount);
     res.json(playlist);
+}));
+
+router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res) => {
+    const {id, month, year, playlistName, genre} = req.body;
+    const playlist = await spotify.createPlaylist(id, month, year, playlistName, genre);
+    res.json(playlist);
+}));
+
+router.post('/filter-liked-songs', authenticateApiKey, catchErrors(async (req, res) => {
+    const {id, genre} = req.body;
+    const filteredSongs = await spotify.createFilteredPlaylist(id, genre);
+    res.json(filteredSongs);
 }));
 
 

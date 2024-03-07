@@ -203,45 +203,30 @@ class Spotify {
     }
 
     /**
-     * Get the user's top tracks
+     * Generic method to get tracks
      * @param {string} id - The user's ID
-     * @param {number} [total=25] - The amount of top tracks to retrieve. Default is the value of the constant 'max'.
+     * @param {Function} spotifyApiMethod - The Spotify API method to call
+     * @param {number} [total=25] - The amount of tracks to retrieve. Default is the value of the constant 'max'.
      * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
-     * @returns {Promise} - The user's top tracks
-     * @throws {Error} - Failed to retrieve top tracks
+     * @param {string | undefined} genre - The genre to retrieve the tracks for
+     * @returns {Promise} - The tracks
+     * @throws {Error} - Failed to retrieve tracks
      */
-    async getTopTracks(id, total = MAX, random = false) {
+    async getTracks(id, spotifyApiMethod, total = MAX, random = false, genre = undefined) {
         try {
             const offset = random ? Math.floor(Math.random() * total) : 0;
-            const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopTracks({
-                limit: total,
-                offset: offset
-            }), id);
+            const tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
 
-            return likedSongs.body;
+            if (genre) {
+                const filteredTracks = await this.filterSongsByGenre(tracks.body.items, genre, id);
+                if (filteredTracks.length === 0) {
+                    return await this.getTracks(id, spotifyApiMethod, total, true, genre);
+                }
+                return {items: filteredTracks};
+            }
+            return tracks.body;
         } catch (error) {
-            throw new Error('Failed to retrieve top tracks.');
-        }
-    }
-
-    /**
-     * Get the user's last listened tracks
-     * @param {string} id - The user's ID
-     * @param {number} [amount=25] - The amount of last listened tracks to retrieve. Default is the value of the constant 'max'.
-     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
-     * @returns {Promise} - The user's last listened tracks
-     * @throws {Error} - Failed to retrieve last listened tracks
-     */
-    async getLastListenedTracks(id, amount = MAX, random = false) {
-        try {
-            const offset = random ? Math.floor(Math.random() * amount) : 0;
-            const lastListened = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyRecentlyPlayedTracks({
-                limit: amount,
-                offset: offset
-            }), id);
-            return lastListened.body;
-        } catch (error) {
-            throw new Error('Failed to retrieve last listened tracks.');
+            throw new Error('Failed to retrieve tracks.');
         }
     }
 
@@ -267,16 +252,17 @@ class Spotify {
      * @param {number} month - The month to create the playlist for
      * @param {number} year - The year to create the playlist for
      * @param {string | undefined} playlistName - The name of the playlist to create
+     * @param {string | undefined} genre - The genre to create the playlist for
      * @returns {Promise} - The created playlist
      * @throws {Error} - Failed to create playlist
      */
-    async createPlaylist(id, month, year, playlistName) {
+    async createPlaylist(id, month, year, playlistName = undefined, genre = undefined) {
         if (!playlistName) {
             const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
             playlistName = `Liked Songs from ${monthName} ${year}.`;
         }
         try {
-            const songsFromMonth = await this.findLikedFromMonth(id, month, year);
+            const songsFromMonth = await this.findLikedFromMonth(id, month, year, genre);
             const playlistDescription = `This playlist is generated with your liked songs from ${month}/${year}.`;
             if (songsFromMonth.length === 0) {
                 return
@@ -309,10 +295,11 @@ class Spotify {
      * @param {string} id - The user's ID
      * @param {number} month - The month to create the playlist for
      * @param {number} year - The year to create the playlist for
+     * @param {string} genre - The genre to create the playlist for
      * @returns {Promise} - The liked songs from the specified month
      * @throws {Error} - Failed to retrieve liked songs
      */
-    async findLikedFromMonth(id, month, year,) {
+    async findLikedFromMonth(id, month, year, genre = undefined) {
         let likedSongs = [];
         let offset = 0;
         let limit = MAX;
@@ -332,36 +319,32 @@ class Spotify {
                 break;
             }
 
-            likedSongs = likedSongs.concat(
-                songs.filter((song) => {
+            if (genre) {
+                const artistIds = songs.map(song => song.track.artists[0].id);
+                const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtists(artistIds), id);
+                const artistGenres = artists.body.artists.reduce((acc, artist) => {
+                    acc[artist.id] = artist.genres;
+                    return acc;
+                }, {});
+
+                for (let song of songs) {
                     const addedAt = new Date(song.added_at);
-                    return addedAt >= startDate && addedAt <= endDate;
-                })
-            );
+                    if (addedAt >= startDate && addedAt <= endDate) {
+                        if (artistGenres[song.track.artists[0].id].includes(genre)) {
+                            likedSongs.push(song);
+                        }
+                    }
+                }
+            } else {
+                likedSongs = likedSongs.concat(
+                    songs.filter((song) => {
+                        const addedAt = new Date(song.added_at);
+                        return addedAt >= startDate && addedAt <= endDate;
+                    })
+                );
+            }
         }
         return likedSongs;
-    }
-
-    /**
-     * Get the user's top tracks
-     * @param {string} id - The user's ID
-     * @param {number} [total=25] - The amount of top tracks to retrieve. Default is the value of the constant 'max'.
-     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
-     * @returns {Promise} - The user's top tracks
-     * @throws {Error} - Failed to retrieve top tracks
-     */
-    async getLikedSongs(id, total = MAX, random = false) {
-        try {
-            const offset = random ? Math.floor(Math.random() * total) : 0;
-            const likedSongs = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({
-                limit: total,
-                offset: offset
-            }), id);
-
-            return likedSongs.body;
-        } catch (error) {
-            throw new Error('Failed to retrieve liked songs.');
-        }
     }
 
     /**
@@ -414,25 +397,125 @@ class Spotify {
      * @param {string} condition - The condition to fetch songs based on.
      * @param {number} max - The maximum amount of songs to fetch.
      * @param {boolean} random - Whether to fetch random songs.
+     * @param {string} genre - The genre to filter the songs by.
      * @returns {Promise} - The fetched songs.
      */
-    async fetchSongs(id, condition, max = MAX, random) {
+    async fetchSongs(id, condition, max = MAX, random, genre = undefined) {
         switch (condition) {
             case 'currentlyPlaying':
                 const currentlyPlaying = await this.getCurrentlyPlaying(id);
                 return [currentlyPlaying.item.id];
             case 'mostPlayed':
-                const mostPlayedSongs = await this.getTopTracks(id, max, true);
+                const mostPlayedSongs = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi));
                 return mostPlayedSongs.items.map((song) => song.id);
             case 'likedSongs':
-                const likedSongs = await this.getLikedSongs(id, max, true);
+                const likedSongs = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi));
                 return likedSongs.items.map((song) => song.track.id);
             case 'recentlyPlayed':
-                const recentlyPlayedSongs = await this.getLastListenedTracks(id, max, true);
+                const recentlyPlayedSongs = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi));
                 return recentlyPlayedSongs.items.map((song) => song.track.id);
             default:
                 return [];
         }
+    }
+
+    /**
+     * Filter liked songs by genre and create a playlist
+     * @param {string} id - The user's ID
+     * @param {string} genre - The genre to filter the liked songs by
+     * @param {number} [amount=25] - The amount of liked songs to retrieve. Default is the value of the constant 'max'.
+     * @returns {Promise} - The created playlist
+     */
+    async createFilteredPlaylist(id, genre, amount = MAX) {
+        let likedSongs = [];
+        let offset = 0;
+        let limit = MAX;
+        let total = 1;
+
+        while (likedSongs.length < total) {
+            let response;
+            try {
+                response = await this.makeSpotifyApiCall(() =>
+                    this.spotifyApi.getMySavedTracks({limit: limit, offset: offset}), id);
+            } catch (error) {
+                console.error('Failed to get saved tracks:', error);
+                return;
+            }
+            const songs = response.body.items;
+            total = response.body.total;
+            offset += limit;
+
+            likedSongs = likedSongs.concat(songs);
+        }
+        let filteredSongs = await this.filterSongsByGenre(likedSongs, genre, id);
+
+        let playlist;
+        try {
+            playlist = await this.makeSpotifyApiCall(() =>
+                this.spotifyApi.createPlaylist('Liked Songs - ' + genre, {
+                    description: `This playlist is generated with your liked songs from the genre ${genre}.`,
+                    public: false,
+                    collaborative: false,
+                }), id
+            );
+        } catch (error) {
+            console.error('Failed to create playlist:', error);
+            return;
+        }
+        if (!playlist || !playlist.body) {
+            console.error('Playlist is undefined or does not have a body property');
+            return;
+        }
+
+        const chunkSize = 100;
+        for (let i = 0; i < filteredSongs.length; i += chunkSize) {
+            const chunk = filteredSongs.slice(i, i + chunkSize);
+            const songUris = chunk.map(song => song.track.uri);
+            try {
+                await this.makeSpotifyApiCall(() => this.spotifyApi.addTracksToPlaylist(playlist.body.id, songUris), id);
+            } catch (error) {
+                console.error('Failed to add tracks to playlist:', error);
+                return;
+            }
+        }
+
+        // Retrieve and return the created playlist
+        let playlistWithTracks;
+        try {
+            playlistWithTracks = await this.makeSpotifyApiCall(() => this.spotifyApi.getPlaylist(playlist.body.id), id);
+        } catch (error) {
+            console.error('Failed to get playlist:', error);
+            return;
+        }
+        return playlistWithTracks.body;
+    }
+
+    /**
+     * Filter liked songs by genre
+     * @param {Array} songs
+     * @param {string} genre
+     * @param {string} id
+     * @returns {Promise<Array>} - The filtered songs
+     */
+    async filterSongsByGenre(songs, genre, id) {
+        const artistIds = songs.map(song => song.track.artists[0].id);
+        const chunkSize = 50; // Maximum number of artist IDs per request
+        const filteredSongs = [];
+
+        // Batch artist IDs and make API calls in chunks
+        for (let i = 0; i < artistIds.length; i += chunkSize) {
+            const chunk = artistIds.slice(i, i + chunkSize);
+            const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtists(chunk), id);
+
+            // Filter songs based on genre
+            songs.forEach(song => {
+                const artist = artists.body.artists.find(artist => artist.id === song.track.artists[0].id);
+                if (artist && artist.genres.includes(genre)) {
+                    filteredSongs.push(song);
+                }
+            });
+        }
+        return [...new Set(filteredSongs)];
     }
 
     /**
