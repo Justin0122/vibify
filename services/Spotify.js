@@ -490,6 +490,12 @@ class Spotify {
         return playlistWithTracks.body;
     }
 
+    async getPlaylists(id, amount = MAX, offset = 0) {
+        const user = await this.getUser(id);
+        const playlists = await this.makeSpotifyApiCall(() => this.spotifyApi.getUserPlaylists(user.id, {limit: amount, offset: offset}), id);
+        return playlists.body;
+    }
+
     /**
      * Filter liked songs by genre
      * @param {Array} songs

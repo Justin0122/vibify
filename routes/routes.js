@@ -60,6 +60,11 @@ router.get('/audio-features/:playlist/:id', authenticateApiKey, catchErrors(asyn
     res.json(audioFeatures);
 }));
 
+router.get('/playlists/:id', authenticateApiKey, catchErrors(async (req, res) => {
+    const playlists = await spotify.getPlaylists(req.params.id, req.query.amount, req.query.offset);
+    res.json(playlists);
+}));
+
 router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
     const {
         id,
@@ -98,6 +103,5 @@ router.post('/filter-liked-songs', authenticateApiKey, catchErrors(async (req, r
     const filteredSongs = await spotify.createFilteredPlaylist(id, genre);
     res.json(filteredSongs);
 }));
-
 
 module.exports = router;
