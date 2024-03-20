@@ -35,25 +35,19 @@ router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
     res.json(user);
 }));
 
-router.get('/currently-playing/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const currentlyPlaying = await spotify.getCurrentlyPlaying(req.params.id);
-    res.json(currentlyPlaying);
-}));
 
-router.get('/top-artists/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const topArtists = await spotify.getTopArtists(req.params.id, req.query.amount);
-    res.json(topArtists);
-}));
+function createRoute(path, spotifyMethod) {
+    router.get(path, authenticateApiKey, catchErrors(async (req, res) => {
+        const result = await spotify.getTracks(req.params.id, spotifyMethod.bind(spotify.spotifyApi), req.query.amount);
+        res.json(result);
+    }));
+}
 
-router.get('/top-tracks/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const topTracks = await spotify.getTracks(req.params.id, spotify.spotifyApi.getMyTopTracks.bind(spotify.spotifyApi), req.query.amount);
-    res.json(topTracks);
-}));
-
-router.get('/last-listened/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const lastListened = await spotify.getTracks(req.params.id, spotify.spotifyApi.getMyRecentlyPlayedTracks.bind(spotify.spotifyApi), req.query.amount);
-    res.json(lastListened);
-}));
+createRoute('/top-tracks/:id', spotify.spotifyApi.getMyTopTracks);
+createRoute('/last-listened/:id', spotify.spotifyApi.getMyRecentlyPlayedTracks);
+createRoute('/liked-songs/:id', spotify.spotifyApi.getMySavedTracks);
+createRoute('/currently-playing/:id', spotify.spotifyApi.getMyCurrentPlayingTrack);
+createRoute('/top-artists/:id', spotify.spotifyApi.getMyTopArtists);
 
 router.get('/audio-features/:playlist/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const audioFeatures = await spotify.getAudioFeaturesFromPlaylist(req.params.playlist, req.params.id);

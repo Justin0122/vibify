@@ -490,6 +490,13 @@ class Spotify {
         return playlistWithTracks.body;
     }
 
+    /**
+     * Get the user's last liked tracks
+     * @param {string} id - The user's ID
+     * @param {number} amount - The amount of tracks to retrieve
+     * @param {number} offset - The offset to start from
+     * @returns {Promise} - The user's last liked tracks
+     */
     async getPlaylists(id, amount = MAX, offset = 0) {
         const user = await this.getUser(id);
         const playlists = await this.makeSpotifyApiCall(() => this.spotifyApi.getUserPlaylists(user.id, {limit: amount, offset: offset}), id);
