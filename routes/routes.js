@@ -32,7 +32,7 @@ router.get('/delete-user/:id', authenticateApiKey, catchErrors(async (req, res) 
 
 router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
     const user = await spotify.getUser(req.params.id);
-    res.json(user);
+    res.send(user);
 }));
 
 
