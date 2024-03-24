@@ -15,7 +15,7 @@ function help() {
     echo "./cli.sh topArtists [amount]"
     echo "./cli.sh recentlyPlayed [amount]"
     echo "./cli.sh createPlaylist <month> <year> <playlistName>"
-    echo "./cli.sh recommendations [genre] [recentlyPlayed] [mostPlayed] [likedSongs] [currentlyPlayingSong]"
+    echo "./cli.sh recommendations [genre] [recentlyPlayed] [mostPlayed] [likedTracks] [currentlyPlayingSong]"
 }
 
 function checkIfUserIdIsSet() {
@@ -88,15 +88,15 @@ function recommendations() {
     genre=${1:-""}
     recentlyPlayed=${2:-false}
     mostPlayed=${3:-true}
-    likedSongs=${4:-true}
+    likedTracks=${4:-true}
     currentlyPlayingSong=${5:-false}
 
-    if [ "$recentlyPlayed" = false ] && [ "$mostPlayed" = false ] && [ "$likedSongs" = false ] && [ "$currentlyPlayingSong" = false ]; then
+    if [ "$recentlyPlayed" = false ] && [ "$mostPlayed" = false ] && [ "$likedTracks" = false ] && [ "$currentlyPlayingSong" = false ]; then
         echo "Error: You must select at least one option."
         return 1
     fi
 
-    response=$(curl -s -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedSongs\":$likedSongs, \"currentlyPlaying\":$currentlyPlayingSong}" "$BASE_URL/recommendations")
+    response=$(curl -s -X POST -H "Content-Type: application/json" -H "x-api-key: $API_TOKEN" -d "{\"id\":\"$USER_ID\", \"genre\":\"$genre\", \"recentlyPlayed\":$recentlyPlayed, \"mostPlayed\":$mostPlayed, \"likedTracks\":$likedTracks, \"currentlyPlaying\":$currentlyPlayingSong}" "$BASE_URL/recommendations")
     echo "$response" | jq -r '.tracks.items[] | {name: .track.name, artists: [.track.artists[].name], artist_urls: [.track.artists[].external_urls.spotify], album: .track.album.name, duration: .track.duration_ms, external_urls: .track.external_urls}' | jq -s 'sort_by(.duration) | .[]'
     echo "Playlist URL: $(echo "$response" | jq -r '.external_urls.spotify')"
 }

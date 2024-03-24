@@ -45,7 +45,7 @@ function createRoute(path, spotifyMethod) {
 
 createRoute('/top-tracks/:id', spotify.spotifyApi.getMyTopTracks);
 createRoute('/last-listened/:id', spotify.spotifyApi.getMyRecentlyPlayedTracks);
-createRoute('/liked-songs/:id', spotify.spotifyApi.getMySavedTracks);
+createRoute('/last-liked/:id', spotify.spotifyApi.getMySavedTracks);
 createRoute('/currently-playing/:id', spotify.spotifyApi.getMyCurrentPlayingTrack);
 createRoute('/top-artists/:id', spotify.spotifyApi.getMyTopArtists);
 
@@ -65,7 +65,7 @@ router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res)
         genre,
         recentlyPlayed,
         mostPlayed,
-        likedSongs,
+        likedTracks,
         currentlyPlaying,
         useAudioFeatures,
         useTrackSeeds,
@@ -77,7 +77,7 @@ router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res)
         genre: genre,
         recentlyPlayed: recentlyPlayed,
         mostPlayed: mostPlayed,
-        likedSongs: likedSongs,
+        likedTracks: likedTracks,
         currentlyPlaying: currentlyPlaying,
         useAudioFeatures: useAudioFeatures,
         useTrackSeeds: useTrackSeeds,
@@ -92,10 +92,10 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
     res.json(playlist);
 }));
 
-router.post('/filter-liked-songs', authenticateApiKey, catchErrors(async (req, res) => {
+router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, res) => {
     const {id, genre} = req.body;
-    const filteredSongs = await spotify.createFilteredPlaylist(id, genre);
-    res.json(filteredSongs);
+    const filteredTracks = await spotify.createFilteredPlaylist(id, genre);
+    res.json(filteredTracks);
 }));
 
 module.exports = router;

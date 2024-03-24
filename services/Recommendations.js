@@ -12,7 +12,7 @@ class Recommendations {
             return {error: 'No options selected.'};
         }
 
-        const songIds = await this.#fetchSongsBasedOnConditions(id, options, amount);
+        const songIds = await this.#fetchTracksBasedOnConditions(id, options, amount);
         if (songIds.length === 0) {
             return {error: 'No songs found.'};
         }
@@ -28,7 +28,7 @@ class Recommendations {
         return Object.values(options).some(value => value);
     }
 
-    async #fetchSongsBasedOnConditions(id, options, amount = MAX) {
+    async #fetchTracksBasedOnConditions(id, options, amount = MAX) {
         const genre = options.genre;
         const songIds = [];
         const conditions = {...options}; // Create a copy of the options object
@@ -36,7 +36,7 @@ class Recommendations {
         for (const [condition, value] of Object.entries(conditions)) {
             if (value) {
                 try {
-                    const songs = await this.spotify.fetchSongs(id, condition, amount, true, genre);
+                    const songs = await this.spotify.fetchTracks(id, condition, amount, true, genre);
                     songIds.push(...songs);
                 } catch (error) {
                     console.error(`Error fetching songs for condition ${condition}:`, error);
