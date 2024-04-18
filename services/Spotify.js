@@ -81,7 +81,7 @@ class Spotify {
         }
 
         if (!user) {
-            throw new Error('User not found in the database.');
+            return {error: 'User not found in the database.'};
         }
 
         this.setSpotifyTokens(user.access_token, user.refresh_token);
