@@ -98,8 +98,8 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
 
 router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, res) => {
     const {id, filter} = req.body;
-    const filteredTracks = await spotify.createFilteredPlaylist(id, filter);
-    res.json(filteredTracks);
+    const playlist = await spotify.createFilteredPlaylist(id, filter);
+    res.json(playlist);
 }));
 
 module.exports = router;
