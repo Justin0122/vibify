@@ -214,20 +214,45 @@ class Spotify {
      */
     async getTracks(id, spotifyApiMethod, total = MAX, random = false, genre = undefined) {
         try {
-            const offset = random ? Math.floor(Math.random() * total) : 0;
-            const tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
+            let offset = random ? Math.floor(Math.random() * total) : 0;
+            let tracks = [];
+            let filteredTracks = [];
 
             if (genre) {
-                const filteredTracks = await this.filterTracksByGenre(tracks.body.items, genre, id);
-                if (filteredTracks.length === 0) {
-                    return await this.getTracks(id, spotifyApiMethod, total, true, genre);
+                console.log('Filtering tracks by genre:', genre);
+                while (filteredTracks.length < 5) {
+                    tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
+                    filteredTracks = await this.filterTracksByGenre(tracks.body.items, genre);
+                    offset += total;
+                    console.info('Filtered tracks:', filteredTracks.length);
                 }
                 return {items: filteredTracks};
+            } else {
+                tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
+                return tracks.body;
             }
-            return tracks.body;
         } catch (error) {
             throw new Error('Failed to retrieve tracks.');
         }
+    }
+
+    async filterTracksByGenre(songs, genre) {
+        const filteredTracks = [];
+
+        // Loop over each song
+        for (const song of songs) {
+
+            // Check if genres is defined
+            if (song.track.artists[0].genres) {
+                const hasGenre = song.track.artists[0].genres.includes(genre);
+                if (hasGenre) {
+                    filteredTracks.push(song);
+                }
+            }
+        }
+
+        console.log('Filtered tracks:', filteredTracks.length);
+        return filteredTracks;
     }
 
     /**
@@ -406,13 +431,13 @@ class Spotify {
                 const currentlyPlaying = await this.getCurrentlyPlaying(id);
                 return [currentlyPlaying.item.id];
             case 'mostPlayed':
-                const mostPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi));
+                const mostPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi), max, random, genre);
                 return mostPlayedTracks.items.map((song) => song.id);
             case 'likedTracks':
-                const likedTracks = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi));
+                const likedTracks = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi), max, random, genre);
                 return likedTracks.items.map((song) => song.track.id);
             case 'recentlyPlayed':
-                const recentlyPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi));
+                const recentlyPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi), max, random, genre);
                 return recentlyPlayedTracks.items.map((song) => song.track.id);
             default:
                 return [];
@@ -420,17 +445,19 @@ class Spotify {
     }
 
     /**
-     * Filter liked songs by genre and create a playlist
+     * Filter liked songs and create a playlist
      * @param {string} id - The user's ID
-     * @param {string} genre - The genre to filter the liked songs by
+     * @param {string} filter - The filter to apply to the liked songs (e.g. artist:Ed Sheeran)
      * @param {number} [amount=25] - The amount of liked songs to retrieve. Default is the value of the constant 'max'.
      * @returns {Promise} - The created playlist
      */
-    async createFilteredPlaylist(id, genre, amount = MAX) {
+    async createFilteredPlaylist(id, filter, amount = MAX) {
         let likedTracks = [];
         let offset = 0;
         let limit = MAX;
         let total = 1;
+
+        let filteredTracks = [];
 
         while (likedTracks.length < total) {
             let response;
@@ -446,14 +473,24 @@ class Spotify {
             offset += limit;
 
             likedTracks = likedTracks.concat(songs);
+
+            if (filter.includes('genre:')) {
+                const genre = filter.split(':')[1];
+                filteredTracks = await this.filterTracksByGenre(likedTracks, genre, id);
+            } else if (filter.includes('artist:')) {
+                const artist = filter.split(':')[1];
+                filteredTracks = await this.filterTracksByArtist(likedTracks, artist, id);
+            } else {
+                console.error('Invalid filter:', filter);
+                return;
+            }
         }
-        let filteredTracks = await this.filterTracksByGenre(likedTracks, genre, id);
 
         let playlist;
         try {
             playlist = await this.makeSpotifyApiCall(() =>
-                this.spotifyApi.createPlaylist('Liked Tracks - ' + genre, {
-                    description: `This playlist is generated with your liked songs from the genre ${genre}.`,
+                this.spotifyApi.createPlaylist('Liked Tracks - ' + filter.split(':')[1], {
+                    description: `This playlist is generated with your liked songs filtered by ${filter}.`,
                     public: false,
                     collaborative: false,
                 }), id
@@ -499,36 +536,35 @@ class Spotify {
      */
     async getPlaylists(id, amount = MAX, offset = 0) {
         const user = await this.getUser(id);
-        const playlists = await this.makeSpotifyApiCall(() => this.spotifyApi.getUserPlaylists(user.id, {limit: amount, offset: offset}), id);
+        const playlists = await this.makeSpotifyApiCall(() => this.spotifyApi.getUserPlaylists(user.id, {
+            limit: amount,
+            offset: offset
+        }), id);
         return playlists.body;
     }
 
     /**
-     * Filter liked songs by genre
+     * Filter liked songs by artist
      * @param {Array} songs
-     * @param {string} genre
+     * @param {string} artist
      * @param {string} id
      * @returns {Promise<Array>} - The filtered songs
      */
-    async filterTracksByGenre(songs, genre, id) {
-        const artistIds = songs.map(song => song.track.artists[0].id);
-        const chunkSize = 50; // Maximum number of artist IDs per request
+    async filterTracksByArtist(songs, artist, id) {
         const filteredTracks = [];
+        const artistId = await this.getArtistId(artist, id);
 
-        // Batch artist IDs and make API calls in chunks
-        for (let i = 0; i < artistIds.length; i += chunkSize) {
-            const chunk = artistIds.slice(i, i + chunkSize);
-            const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtists(chunk), id);
-
-            // Filter songs based on genre
-            songs.forEach(song => {
-                const artist = artists.body.artists.find(artist => artist.id === song.track.artists[0].id);
-                if (artist && artist.genres.includes(genre)) {
-                    filteredTracks.push(song);
-                }
-            });
+        for (const song of songs) {
+            if (song.track.artists[0].id === artistId) {
+                filteredTracks.push(song);
+            }
         }
-        return [...new Set(filteredTracks)];
+        return filteredTracks;
+    }
+
+    async getArtistId(artist, id) {
+        const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.searchArtists(artist), id);
+        return artists.body.artists.items[0].id;
     }
 
     /**
