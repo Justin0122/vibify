@@ -1,4 +1,5 @@
 import express from 'express';
+
 const router = express.Router();
 import Spotify from '../services/Spotify.js';
 import authenticateApiKey from '../middlewares/authenticateApiKey.js';
@@ -36,8 +37,7 @@ router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
         const user = await spotify.getUser(req.params.id);
         res.send(user);
     } catch (error) {
-        console.error('Failed to retrieve user:', error);
-        res.status(500).json({ error: error.message });
+        res.status(500).json({error: error.message});
     }
 }));
 
@@ -84,15 +84,15 @@ router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res)
     } = req.body;
     const playlist = await spotify.recommendations.createRecommendationPlaylist(
         id, {
-        genre: genre,
-        recentlyPlayed: recentlyPlayed,
-        mostPlayed: mostPlayed,
-        likedTracks: likedTracks,
-        currentlyPlaying: currentlyPlaying,
-        useAudioFeatures: useAudioFeatures,
-        useTrackSeeds: useTrackSeeds,
-        targetValues: targetValues
-    }, amount);
+            genre: genre,
+            recentlyPlayed: recentlyPlayed,
+            mostPlayed: mostPlayed,
+            likedTracks: likedTracks,
+            currentlyPlaying: currentlyPlaying,
+            useAudioFeatures: useAudioFeatures,
+            useTrackSeeds: useTrackSeeds,
+            targetValues: targetValues
+        }, amount);
     res.json(playlist);
 }));
 
@@ -103,17 +103,15 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
 }));
 
 router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, res) => {
-    const { id, filter } = req.body;
+    const {id, filter} = req.body;
     try {
         const playlist = await spotify.createFilteredPlaylist(id, filter);
         res.json(playlist);
         await spotify.addTracksToPlaylistInBackground(id, playlist.id, filter);
     } catch (error) {
-        console.error('Failed to initiate playlist creation:', error);
-        res.status(500).json({ error: 'Failed to initiate playlist creation' });
+        res.status(500).json({error: 'Failed to initiate playlist creation'});
     }
 }));
-
 
 
 export default router;

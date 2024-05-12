@@ -1,10 +1,11 @@
-import SpotifyWebApi from 'spotify-web-api-node';
-import request from 'request';
-import Recommendations from './Recommendations.js';
-import { MAX } from '../utils/constants.js';
-import db from '../db/database.js';
-import dotenv from 'dotenv';
-import crypto from 'crypto';
+import SpotifyWebApi from 'spotify-web-api-node'
+import request from 'request'
+import Recommendations from './Recommendations.js'
+import {MAX} from '../utils/constants.js'
+import db from '../db/database.js'
+import crypto from 'crypto'
+import dotenv from 'dotenv'
+
 dotenv.config();
 
 /**
@@ -36,38 +37,33 @@ class Spotify {
      * Make a Spotify API call and handle token refresh if necessary
      * @param {Function} apiCall - The Spotify API call to make
      * @param {string} id - The user's Discord ID
-     * @param {number} [maxRetries=3] - The maximum number of retries
-     * @param {number} [delay=1000] - The delay in milliseconds
      * @returns {Promise} - The response from the Spotify API
-     * @throws {Error} - Failed to make Spotify API cal
+     * @throws {Error} - Failed to make Spotify API call
      */
-    async makeSpotifyApiCall(apiCall, id, maxRetries = 3, delay = 1000) {
-        let retries = 0;
-        while (retries < maxRetries) {
-            try {
-                const user = await db('users').where('user_id', id).first();
-                if (!user) {
-                    throw new Error('User not found in the database.');
-                }
-                this.setSpotifyTokens(user.access_token, user.refresh_token);
-                this.apiCallCount++;
-                console.log('API call count:', this.apiCallCount);
-                return await apiCall();
-            } catch (error) {
-                console.error('Error:', error);
-                if (error.statusCode === 429) {
-                    const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
-                    console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
-                    await new Promise(resolve => setTimeout(resolve, retryAfter));
-                } else {
-                    const refreshToken = await this.getRefreshToken(id);
-                    await this.handleTokenRefresh(refreshToken);
-                }
+    async makeSpotifyApiCall(apiCall, id) {
+        try {
+            const user = await db('users').where('user_id', id).first();
+            console.log('User:', user);
+            if (!user) {
+                throw new Error('User not found in the database.');
             }
-            retries++;
-            delay *= 2; // Exponential backoff
+            this.setSpotifyTokens(user.access_token, user.refresh_token);
+            this.apiCallCount++;
+            console.log('API call count:', this.apiCallCount);
+            return await apiCall();
+        } catch (error) {
+            console.log('Error:', error);
+            if (error.statusCode === 429) {
+                const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
+                console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
+                await new Promise(resolve => setTimeout(resolve, retryAfter));
+                return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
+            } else {
+                const refreshToken = await this.getRefreshToken(id);
+                await this.handleTokenRefresh(refreshToken);
+                return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
+            }
         }
-        throw new Error('Max retries exceeded.');
     }
 
     /**
@@ -93,7 +89,7 @@ class Spotify {
         }
 
         if (!user) {
-            return { error: 'User not found in the database.' };
+            return {error: 'User not found in the database.'};
         }
 
         this.setSpotifyTokens(user.access_token, user.refresh_token);
@@ -233,12 +229,10 @@ class Spotify {
             let filteredTracks = [];
 
             if (genre) {
-                console.log('Filtering tracks by genre:', genre);
                 while (filteredTracks.length < 5) {
                     tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
                     filteredTracks = await this.filterTracksByGenre(tracks.body.items, genre);
                     offset += total;
-                    console.info('Filtered tracks:', filteredTracks.length);
                 }
                 return {items: filteredTracks};
             } else {
@@ -265,7 +259,6 @@ class Spotify {
             }
         }
 
-        console.log('Filtered tracks:', filteredTracks.length);
         return filteredTracks;
     }
 
@@ -508,7 +501,7 @@ class Spotify {
             let response;
             try {
                 response = await this.makeSpotifyApiCall(() =>
-                    this.spotifyApi.getMySavedTracks({ limit: limit, offset: offset }), id);
+                    this.spotifyApi.getMySavedTracks({limit: limit, offset: offset}), id);
             } catch (error) {
                 console.error('Failed to get saved tracks:', error);
                 return;
