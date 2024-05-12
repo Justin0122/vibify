@@ -1,8 +1,11 @@
-const SpotifyWebApi = require('spotify-web-api-node');
-const request = require('request');
-const Recommendations = require('./Recommendations.js');
-const {MAX} = require('../utils/constants');
-const db = require('../db/database.js');
+import SpotifyWebApi from 'spotify-web-api-node';
+import request from 'request';
+import Recommendations from './Recommendations.js';
+import { MAX } from '../utils/constants.js';
+import db from '../db/database.js';
+import dotenv from 'dotenv';
+import crypto from 'crypto';
+dotenv.config();
 
 /**
  * Spotify class to handle all Spotify API calls
@@ -33,29 +36,38 @@ class Spotify {
      * Make a Spotify API call and handle token refresh if necessary
      * @param {Function} apiCall - The Spotify API call to make
      * @param {string} id - The user's Discord ID
+     * @param {number} [maxRetries=3] - The maximum number of retries
+     * @param {number} [delay=1000] - The delay in milliseconds
      * @returns {Promise} - The response from the Spotify API
-     * @throws {Error} - Failed to make Spotify API call
+     * @throws {Error} - Failed to make Spotify API cal
      */
-    async makeSpotifyApiCall(apiCall, id) {
-        const user = await db('users').where('user_id', id).first();
-        if (!user) {
-            throw new Error('User not found in the database.');
-        }
-        this.setSpotifyTokens(user.access_token, user.refresh_token);
-        this.apiCallCount++;
-        console.log('API call count:', this.apiCallCount);
-        try {
-            return await apiCall();
-        } catch (error) {
-            console.log('Error:', error);
-            const refreshToken = await this.getRefreshToken(id);
-            await this.handleTokenRefresh(refreshToken);
+    async makeSpotifyApiCall(apiCall, id, maxRetries = 3, delay = 1000) {
+        let retries = 0;
+        while (retries < maxRetries) {
             try {
+                const user = await db('users').where('user_id', id).first();
+                if (!user) {
+                    throw new Error('User not found in the database.');
+                }
+                this.setSpotifyTokens(user.access_token, user.refresh_token);
+                this.apiCallCount++;
+                console.log('API call count:', this.apiCallCount);
                 return await apiCall();
             } catch (error) {
-                throw error;
+                console.error('Error:', error);
+                if (error.statusCode === 429) {
+                    const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
+                    console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
+                    await new Promise(resolve => setTimeout(resolve, retryAfter));
+                } else {
+                    const refreshToken = await this.getRefreshToken(id);
+                    await this.handleTokenRefresh(refreshToken);
+                }
             }
+            retries++;
+            delay *= 2; // Exponential backoff
         }
+        throw new Error('Max retries exceeded.');
     }
 
     /**
@@ -81,7 +93,7 @@ class Spotify {
         }
 
         if (!user) {
-            return {error: 'User not found in the database.'};
+            return { error: 'User not found in the database.' };
         }
 
         this.setSpotifyTokens(user.access_token, user.refresh_token);
@@ -90,7 +102,7 @@ class Spotify {
         try {
             me = await this.spotifyApi.getMe();
         } catch (error) {
-            console.log('Error while fetching Spotify user: ' + error.message);
+            console.error('Error while fetching Spotify user:', error);
             console.log('Attempting to refresh token and retry...');
 
             try {
@@ -102,12 +114,14 @@ class Spotify {
             try {
                 me = await this.spotifyApi.getMe();
             } catch (error) {
+                console.error('Failed to retrieve Spotify user after refreshing token:', error);
                 throw new Error('Failed to retrieve Spotify user after refreshing token: ' + error.message);
             }
         }
 
         return me.body;
     }
+
 
     /**
      * Get the user's Spotify refresh token
@@ -232,7 +246,7 @@ class Spotify {
                 return tracks.body;
             }
         } catch (error) {
-            throw new Error('Failed to retrieve tracks.');
+            throw new Error('Failed to retrieve tracks: ' + error.message);
         }
     }
 
@@ -640,7 +654,7 @@ class Spotify {
                 .then(
                     async (data) => {
                         const {access_token, refresh_token, expires_in} = data.body;
-                        const api_token = require('crypto').createHash('sha256').update(id + access_token).digest('hex');
+                        const api_token = crypto.createHash('sha256').update(id + access_token).digest('hex');
                         await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token);
                         resolve(api_token);
                     },
@@ -653,4 +667,4 @@ class Spotify {
     }
 }
 
-module.exports = Spotify;
+export default Spotify;

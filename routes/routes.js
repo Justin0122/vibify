@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const Spotify = require('../services/Spotify.js');
-const authenticateApiKey = require('../middlewares/authenticateApiKey');
-const catchErrors = require('../middlewares/catchErrors');
+import Spotify from '../services/Spotify.js';
+import authenticateApiKey from '../middlewares/authenticateApiKey.js';
+import catchErrors from '../middlewares/catchErrors.js';
+
 
 const spotify = new Spotify();
 
@@ -31,8 +32,13 @@ router.get('/delete-user/:id', authenticateApiKey, catchErrors(async (req, res) 
 }));
 
 router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
-    const user = await spotify.getUser(req.params.id);
-    res.send(user);
+    try {
+        const user = await spotify.getUser(req.params.id);
+        res.send(user);
+    } catch (error) {
+        console.error('Failed to retrieve user:', error);
+        res.status(500).json({ error: error.message });
+    }
 }));
 
 
@@ -110,4 +116,4 @@ router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, 
 
 
 
-module.exports = router;
+export default router;

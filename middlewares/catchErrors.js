@@ -1,4 +1,4 @@
-module.exports = function catchErrors(fn) {
+export default function catchErrors(fn) {
     return function (req, res, next) {
         return fn(req, res, next).catch((err) => {
             console.error(err);

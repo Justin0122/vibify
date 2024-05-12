@@ -1,6 +1,6 @@
-const db = require('../db/database')
+import db from '../db/database.js';
 
-module.exports = async function authenticateApiKey(req, res, next) {
+export default async function authenticateApiKey(req, res, next) {
     if (process.env.DEV_MODE === 'true') {
         console.log(req.originalUrl);
         next();

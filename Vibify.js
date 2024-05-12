@@ -1,8 +1,9 @@
-require('dotenv').config();
-const express = require('express');
-const routes = require('./routes/routes');
-const setupCors = require('./middlewares/setupCors');
+import dotenv from 'dotenv';
+import express from 'express';
+import routes from './routes/routes.js';
+import setupCors from './middlewares/setupCors.js';
 
+dotenv.config();
 
 const app = express();
 app.use(setupCors);

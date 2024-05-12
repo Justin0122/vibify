@@ -1,4 +1,6 @@
-const knex = require('knex');
+import knex from 'knex';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const db = knex({
     client: 'mysql',
@@ -10,4 +12,4 @@ const db = knex({
     },
 });
 
-module.exports = db;
+export default db;

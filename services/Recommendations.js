@@ -1,4 +1,4 @@
-const {MAX, MAX_RECOMMENDATIONS, checkAmount} = require('../utils/constants');
+import { MAX, MAX_RECOMMENDATIONS, checkAmount } from '../utils/constants.js';
 
 class Recommendations {
     constructor(spotify) {
@@ -86,4 +86,4 @@ class Recommendations {
     }
 }
 
-module.exports = Recommendations;
+export default Recommendations;
