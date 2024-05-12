@@ -97,9 +97,17 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
 }));
 
 router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, res) => {
-    const {id, filter} = req.body;
-    const playlist = await spotify.createFilteredPlaylist(id, filter);
-    res.json(playlist);
+    const { id, filter } = req.body;
+    try {
+        const playlist = await spotify.createFilteredPlaylist(id, filter);
+        res.json(playlist);
+        await spotify.addTracksToPlaylistInBackground(id, playlist.id, filter);
+    } catch (error) {
+        console.error('Failed to initiate playlist creation:', error);
+        res.status(500).json({ error: 'Failed to initiate playlist creation' });
+    }
 }));
+
+
 
 module.exports = router;
