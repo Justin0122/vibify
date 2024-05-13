@@ -117,7 +117,6 @@ class Spotify {
         return me.body;
     }
 
-
     /**
      * Get the user's Spotify refresh token
      * @param {string} id - The user's ID
@@ -162,7 +161,7 @@ class Spotify {
         const authOptions = {
             url: 'https://accounts.spotify.com/api/token',
             headers: {
-                Authorization: 'Basic ' + Buffer.from(this.clientId + ':' + this.clientSecret).toString('base64'),
+                Authorization: `Basic ${Buffer.from(this.clientId + ':' + this.clientSecret).toString('base64')}`,
             },
             form: {
                 grant_type: 'refresh_token',
@@ -174,10 +173,9 @@ class Spotify {
         return new Promise((resolve, reject) => {
             request.post(authOptions, (error, response, body) => {
                 if (!error && response.statusCode === 200) {
-                    const {access_token, refresh_token} = body;
                     resolve({
-                        access_token: access_token,
-                        refresh_token: refresh_token || refreshToken,
+                        access_token: body.access_token,
+                        refresh_token: body.refresh_token || refreshToken,
                     });
                 } else {
                     reject(error);
@@ -241,24 +239,6 @@ class Spotify {
         } catch (error) {
             throw new Error('Failed to retrieve tracks: ' + error.message);
         }
-    }
-
-    async filterTracksByGenre(songs, genre) {
-        const filteredTracks = [];
-
-        // Loop over each song
-        for (const song of songs) {
-
-            // Check if genres is defined
-            if (song.track.artists[0].genres) {
-                const hasGenre = song.track.artists[0].genres.includes(genre);
-                if (hasGenre) {
-                    filteredTracks.push(song);
-                }
-            }
-        }
-
-        return filteredTracks;
     }
 
     /**
@@ -472,7 +452,6 @@ class Spotify {
             throw new Error('Failed to create playlist');
         }
         if (!playlist || !playlist.body) {
-            console.error('Playlist is undefined or does not have a body property');
             throw new Error('Playlist is undefined or does not have a body property');
         }
 
@@ -511,10 +490,8 @@ class Spotify {
 
             likedTracks = likedTracks.concat(songs);
 
-            if (filter.includes('genre:')) {
-                const genre = filter.split(':')[1];
-                await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByGenre(likedTracks, genre, id), addedTracks);
-            } else if (filter.includes('artist:')) {
+
+            if (filter.includes('artist:')) {
                 const artist = filter.split(':')[1];
                 await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
             } else {
@@ -527,9 +504,9 @@ class Spotify {
     /**
      * Add filtered tracks to the playlist
      * @param {string} id - The user's ID
-     * @param {string} playlistId
-     * @param {Array} filteredTracks
-     * @param {Set} addedTracks
+     * @param {string} playlistId - The ID of the playlist
+     * @param {Array} filteredTracks - The filtered tracks
+     * @param {Set} addedTracks - The set of track URIs that have been added
      * @returns {Promise<void>}
      */
     async addFilteredTracksToPlaylist(id, playlistId, filteredTracks, addedTracks) {
@@ -601,7 +578,6 @@ class Spotify {
         const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.searchArtists(artist), id);
         return artists.body.artists.items[0].id;
     }
-
 
     /**
      * @param {string} id - The user's ID
