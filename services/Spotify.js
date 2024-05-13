@@ -43,7 +43,6 @@ class Spotify {
     async makeSpotifyApiCall(apiCall, id) {
         try {
             const user = await db('users').where('user_id', id).first();
-            console.log('User:', user);
             if (!user) {
                 throw new Error('User not found in the database.');
             }

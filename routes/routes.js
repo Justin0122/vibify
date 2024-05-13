@@ -1,11 +1,9 @@
 import express from 'express';
-
-const router = express.Router();
 import Spotify from '../services/Spotify.js';
 import authenticateApiKey from '../middlewares/authenticateApiKey.js';
 import catchErrors from '../middlewares/catchErrors.js';
 
-
+const router = express.Router();
 const spotify = new Spotify();
 
 router.get("/", (req, res) => {
@@ -70,29 +68,11 @@ router.get('/playlists/:id', authenticateApiKey, catchErrors(async (req, res) =>
 }));
 
 router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
-    const {
-        id,
-        genre,
-        recentlyPlayed,
-        mostPlayed,
-        likedTracks,
-        currentlyPlaying,
-        useAudioFeatures,
-        useTrackSeeds,
-        targetValues,
-        amount
-    } = req.body;
-    const playlist = await spotify.recommendations.createRecommendationPlaylist(
-        id, {
-            genre: genre,
-            recentlyPlayed: recentlyPlayed,
-            mostPlayed: mostPlayed,
-            likedTracks: likedTracks,
-            currentlyPlaying: currentlyPlaying,
-            useAudioFeatures: useAudioFeatures,
-            useTrackSeeds: useTrackSeeds,
-            targetValues: targetValues
-        }, amount);
+    const { id, amount } = req.body;
+    const options = { ...req.body };
+    delete options.id;
+    delete options.amount;
+    const playlist = await spotify.recommendations.createRecommendationPlaylist(id, options, amount);
     res.json(playlist);
 }));
 
