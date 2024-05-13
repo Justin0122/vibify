@@ -241,6 +241,25 @@ class Spotify {
         }
     }
 
+    async filterTracksByGenre(songs, genre, id) {
+        const filteredTracks = [];
+
+        for (const song of songs) {
+            let found = false;
+            for (const songArtist of song.track.artists) {
+                const artist = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(songArtist.id), id);
+                if (artist.body.genres.includes(genre)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (found) {
+                filteredTracks.push(song);
+            }
+        }
+        return filteredTracks;
+    }
+
     /**
      * Get the user's top artists
      * @param {string} id - The user's ID
@@ -431,17 +450,47 @@ class Spotify {
     }
 
     /**
+     * Find a playlist by name
+     * @param {string} id - The user's ID
+     * @param {string} filter - The name of the playlist to find
+     * @param {number} limit - The maximum amount of playlists to retrieve
+     * @returns {Promise} - The found playlist
+     */
+    async findPlaylist(id, filter, limit = MAX) {
+        let page = 1;
+        while (true) {
+            const playlists = await this.getPlaylists(id, limit, (page - 1) * limit);
+            for (const playlist of playlists.items) {
+                if (playlist.name.includes(filter)) {
+                    return playlist;
+                }
+            }
+            if (playlists.items.length < limit) {
+                break; // No more playlists
+            }
+            page++;
+        }
+        return null;
+    }
+
+    /**
      * Filter liked songs and create a playlist
      * @param {string} id - The user's ID
      * @param {string} filter - The filter to apply to the liked songs (e.g. artist:Ed Sheeran)
      * @returns {Promise} - The created playlist
      */
     async createFilteredPlaylist(id, filter) {
-        // Create the playlist
         let playlist;
+        const playlistName = 'Liked Tracks - ' + filter.split(':')[1];
+
+        const existingPlaylist = await this.findPlaylist(id, playlistName);
+        if (existingPlaylist) {
+            return existingPlaylist;
+        }
+
         try {
             playlist = await this.makeSpotifyApiCall(() =>
-                this.spotifyApi.createPlaylist('Liked Tracks - ' + filter.split(':')[1], {
+                this.spotifyApi.createPlaylist(playlistName, {
                     description: `This playlist is generated with your liked songs filtered by ${filter}.`,
                     public: true,
                     collaborative: false,
@@ -454,7 +503,6 @@ class Spotify {
         if (!playlist || !playlist.body) {
             throw new Error('Playlist is undefined or does not have a body property');
         }
-
         // Return the playlist
         return playlist.body;
     }
@@ -475,7 +523,13 @@ class Spotify {
 
         const addedTracks = new Set(); // Set to store track URIs that have been added
 
-        while (likedTracks.length < total) {
+        // Fetch the tracks that are already in the playlist
+        const playlistTracksResponse = await this.makeSpotifyApiCall(() => this.spotifyApi.getPlaylistTracks(playlistId), id);
+        const playlistTracks = playlistTracksResponse.body.items.map(item => item.track.id);
+
+        let foundInPlaylist = false; // Flag to indicate if a song is found in the playlist
+
+        while (likedTracks.length < total && !foundInPlaylist) {
             let response;
             try {
                 response = await this.makeSpotifyApiCall(() =>
@@ -488,13 +542,21 @@ class Spotify {
             total = response.body.total;
             offset += limit;
 
-            likedTracks = likedTracks.concat(songs);
+            for (const song of songs) {
+                // If the song is already in the playlist, stop fetching and filtering
+                if (playlistTracks.includes(song.track.id)) {
+                    foundInPlaylist = true;
+                    break;
+                }
+                likedTracks.push(song);
 
+                if (filter.includes('artist:')) {
+                    const artist = filter.split(':')[1];
+                    await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
+                }
+            }
 
-            if (filter.includes('artist:')) {
-                const artist = filter.split(':')[1];
-                await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
-            } else {
+            if (!filter.includes('artist:')) {
                 console.error('Invalid filter:', filter);
                 return;
             }
