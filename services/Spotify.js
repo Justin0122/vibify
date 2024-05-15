@@ -476,12 +476,16 @@ class Spotify {
     /**
      * Filter liked songs and create a playlist
      * @param {string} id - The user's ID
-     * @param {string} filter - The filter to apply to the liked songs (e.g. artist:Ed Sheeran)
+     * @param {array} filter - The filter to apply to the liked songs (e.g. [' artist:Ed Sheeran', ' artist:Justin Bieber'])
+     * @param {string} playlistName - The name of the playlist to create
      * @returns {Promise} - The created playlist
      */
-    async createFilteredPlaylist(id, filter) {
+    async createFilteredPlaylist(id, filter, playlistName = undefined) {
         let playlist;
-        const playlistName = 'Liked Tracks - ' + filter.split(':')[1];
+        if (!playlistName) {
+            const artists = filter.split(' artist:').slice(1).join(', ');
+            const playlistName = 'Liked Tracks - ' + artists;
+        }
 
         const existingPlaylist = await this.findPlaylist(id, playlistName);
         if (existingPlaylist) {
@@ -511,10 +515,10 @@ class Spotify {
      * Add tracks to a playlist in the background
      * @param {string} id - The user's ID
      * @param {string} playlistId
-     * @param {string} filter - The filter to apply to the liked songs (e.g. artist:Ed Sheeran)
+     * @param {array} filters - The filter to apply to the liked songs (e.g. [' artist:Ed Sheeran', ' artist:Justin Bieber'])
      * @returns {Promise<void>}
      */
-    async addTracksToPlaylistInBackground(id, playlistId, filter) {
+    async addTracksToPlaylistInBackground(id, playlistId, filters) {
         // Fetch and filter tracks
         let likedTracks = [];
         let offset = 0;
@@ -549,16 +553,18 @@ class Spotify {
                     break;
                 }
                 likedTracks.push(song);
-
-                if (filter.includes('artist:')) {
-                    const artist = filter.split(':')[1];
-                    await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
-                }
             }
 
-            if (!filter.includes('artist:')) {
-                console.error('Invalid filter:', filter);
-                return;
+            for (const filter of filters) {
+                // Extract the artist name from the filter
+                const artist = filter.split(':')[1];
+
+                if (artist) {
+                    await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
+                } else {
+                    console.error('Invalid filter:', filter);
+                    return;
+                }
             }
         }
     }
@@ -607,7 +613,7 @@ class Spotify {
     /**
      * Filter liked songs by artist
      * @param {Array} songs - The liked songs
-     * @param {string} artist - The artist to filter the songs by
+     * @param {array} artist - The artist to filter the songs by
      * @param {string} id - The user's ID
      * @returns {Promise<Array>} - The filtered songs
      */

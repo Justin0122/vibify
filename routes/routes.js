@@ -83,9 +83,10 @@ router.post('/create-playlist', authenticateApiKey, catchErrors(async (req, res)
 }));
 
 router.post('/filter-liked-tracks', authenticateApiKey, catchErrors(async (req, res) => {
-    const {id, filter} = req.body;
+    const {id, filter, playlistName} = req.body;
+    console.log(req.body);
     try {
-        const playlist = await spotify.createFilteredPlaylist(id, filter);
+        const playlist = await spotify.createFilteredPlaylist(id, filter, playlistName);
         res.json(playlist);
         await spotify.addTracksToPlaylistInBackground(id, playlist.id, filter);
     } catch (error) {
