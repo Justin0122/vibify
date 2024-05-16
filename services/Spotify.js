@@ -483,8 +483,8 @@ class Spotify {
     async createFilteredPlaylist(id, filter, playlistName = undefined) {
         let playlist;
         if (!playlistName) {
-            const artists = filter.split(' artist:').slice(1).join(', ');
-            const playlistName = 'Liked Tracks - ' + artists;
+            const artists = filter.map((f) => f.split(':')[1]);
+            playlistName = `Liked Tracks - ${artists.join(' , ')}`;
         }
 
         const existingPlaylist = await this.findPlaylist(id, playlistName);
