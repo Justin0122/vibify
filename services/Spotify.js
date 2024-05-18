@@ -214,14 +214,17 @@ class Spotify {
      * @param {string} id - The user's ID
      * @param {Function} spotifyApiMethod - The Spotify API method to call
      * @param {number} [total=25] - The amount of tracks to retrieve. Default is the value of the constant 'max'.
-     * @param {boolean} [random=false] - Flag indicating whether to retrieve random tracks. Default is false.
+     * @param {number} [offset=0] - The offset to start from. Default is 0.
      * @param {string | undefined} genre - The genre to retrieve the tracks for
+     * @param {boolean} random - Whether to retrieve random tracks
      * @returns {Promise} - The tracks
      * @throws {Error} - Failed to retrieve tracks
      */
-    async getTracks(id, spotifyApiMethod, total = MAX, random = false, genre = undefined) {
+    async getTracks(id, spotifyApiMethod, total = MAX, offset = 0, genre = undefined, random = false) {
         try {
-            let offset = random ? Math.floor(Math.random() * total) : 0;
+            if (random){
+                offset = Math.floor(Math.random() * 11);
+            }
             let tracks = [];
             let filteredTracks = [];
 
@@ -436,13 +439,13 @@ class Spotify {
                 const currentlyPlaying = await this.getCurrentlyPlaying(id);
                 return [currentlyPlaying.item.id];
             case 'mostPlayed':
-                const mostPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi), max, random, genre);
+                const mostPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi), max, 0, genre, random);
                 return mostPlayedTracks.items.map((song) => song.id);
             case 'likedTracks':
-                const likedTracks = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi), max, random, genre);
+                const likedTracks = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi), max, 0, genre, random);
                 return likedTracks.items.map((song) => song.track.id);
             case 'recentlyPlayed':
-                const recentlyPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi), max, random, genre);
+                const recentlyPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi), max, 0, genre, random);
                 return recentlyPlayedTracks.items.map((song) => song.track.id);
             default:
                 return [];
