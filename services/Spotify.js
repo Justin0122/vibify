@@ -22,6 +22,7 @@ class Spotify {
         this.redirectUri = process.env.SPOTIFY_REDIRECT_URI;
         this.clientId = process.env.SPOTIFY_CLIENT_ID;
         this.clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+        this.isRateLimited = false;
 
         this.apiCallCount = 0;
 
@@ -41,27 +42,33 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
-        try {
-            const user = await db('users').where('user_id', id).first();
-            if (!user) {
-                throw new Error('User not found in the database.');
-            }
-            this.setSpotifyTokens(user.access_token, user.refresh_token);
-            this.apiCallCount++;
-            console.log('API call count:', this.apiCallCount);
-            return await apiCall();
-        } catch (error) {
-            console.log('Error:', error);
-            if (error.statusCode === 429) {
-                const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
-                console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
-                await new Promise(resolve => setTimeout(resolve, retryAfter));
-                return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
-            } else {
-                const refreshToken = await this.getRefreshToken(id);
-                await this.handleTokenRefresh(refreshToken);
-                return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
-            }
+            try {
+                if (this.isRateLimited) {
+                    throw new Error('Rate limit exceeded. Please wait before making more requests.');
+                }
+
+                const user = await db('users').where('user_id', id).first();
+                if (!user) {
+                    throw new Error('User not found in the database.');
+                }
+                this.setSpotifyTokens(user.access_token, user.refresh_token);
+                this.apiCallCount++;
+                console.log('API call count:', this.apiCallCount);
+                return await apiCall();
+            } catch (error) {
+                console.log('Error:', error);
+                if (error.statusCode === 429) {
+                    const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
+                    console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
+                    this.isRateLimited = true;
+                    await new Promise(resolve => setTimeout(resolve, retryAfter));
+                    this.isRateLimited = false;
+                    return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
+                } else {
+                    const refreshToken = await this.getRefreshToken(id);
+                    await this.handleTokenRefresh(refreshToken);
+                    return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
+                }
         }
     }
 

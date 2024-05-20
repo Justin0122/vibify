@@ -41,6 +41,7 @@ router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
 
 
 function createRoute(path, spotifyMethod) {
+    console.log(path);
     router.get(path, authenticateApiKey, catchErrors(async (req, res) => {
         const result = await spotify.getTracks(req.params.id, spotifyMethod.bind(spotify.spotifyApi), req.query.amount, req.query.offset);
         if (result.error) {
