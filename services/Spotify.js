@@ -260,10 +260,15 @@ class Spotify {
         for (const song of songs) {
             let found = false;
             for (const songArtist of song.track.artists) {
-                const artist = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(songArtist.id), id);
-                if (artist.body.genres.includes(genre)) {
-                    found = true;
-                    break;
+                try {
+                    const artist = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(songArtist.id), id);
+                    if (artist.body.genres.includes(genre)) {
+                        found = true;
+                        break;
+                    }
+                } catch (error) {
+                    console.error(`Error fetching artist ${songArtist.id}:`, error);
+                    continue; // Continue if there's an error fetching the artist
                 }
             }
             if (found) {
