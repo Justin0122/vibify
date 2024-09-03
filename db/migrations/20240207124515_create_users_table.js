@@ -2,8 +2,8 @@
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.up = function(knex) {
-    return knex.schema.createTable('users', table => {
+export const up = async (knex) => {
+    await knex.schema.createTable('users', table => {
         table.increments('id');
         table.string('user_id').notNullable().unique();
         table.text('access_token').notNullable();
@@ -19,6 +19,6 @@ exports.up = function(knex) {
  * @param { import("knex").Knex } knex
  * @returns { Promise<void> }
  */
-exports.down = function(knex) {
-    return knex.schema.dropTable('users');
+export const down = async (knex) => {
+    await knex.schema.dropTable('users');
 };

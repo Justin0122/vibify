@@ -1,14 +1,18 @@
-const dotenv = require('dotenv');
-const path = require('path');
-dotenv.config({ path: path.join(__dirname, '../.env') });
+import { fileURLToPath } from 'url';
+import path from 'path';
+import dotenv from 'dotenv';
 
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '../.env') });
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const dbConfig = {
   development: {
     client: 'mysql',
     connection: {
       database: process.env.DB_NAME,
-      user:     process.env.DB_USER,
+      user: process.env.DB_USER,
       password: process.env.DB_PASS
     },
     migrations: {
@@ -20,7 +24,7 @@ module.exports = {
     client: 'mysql',
     connection: {
       database: process.env.DB_NAME,
-      user:     process.env.DB_USER,
+      user: process.env.DB_USER,
       password: process.env.DB_PASS
     },
     pool: {
@@ -36,7 +40,7 @@ module.exports = {
     client: 'mysql',
     connection: {
       database: process.env.DB_NAME,
-      user:     process.env.DB_USER,
+      user: process.env.DB_USER,
       password: process.env.DB_PASS,
     },
     pool: {
@@ -48,3 +52,5 @@ module.exports = {
     }
   }
 };
+
+export default dbConfig;

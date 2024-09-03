@@ -1,5 +1,7 @@
-require('dotenv').config();
-const knex = require('knex');
+import dotenv from 'dotenv';
+import knex from 'knex';
+
+dotenv.config();
 
 const db = knex({
     client: 'mysql',
@@ -10,7 +12,13 @@ const db = knex({
     },
 });
 
-db.raw('CREATE DATABASE IF NOT EXISTS ??', process.env.DB_NAME)
-    .then(() => console.log('Database created'))
-    .catch((err) => console.log('Error creating database: ', err))
-    .finally(() => db.destroy());
+(async () => {
+    try {
+        await db.raw('CREATE DATABASE IF NOT EXISTS ??', [process.env.DB_NAME]);
+        console.log('Database created');
+    } catch (err) {
+        console.log('Error creating database: ', err);
+    } finally {
+        db.destroy();
+    }
+})();
