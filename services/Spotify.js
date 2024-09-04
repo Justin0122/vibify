@@ -51,7 +51,26 @@ class Spotify {
             if (!user) {
                 throw new Error('User not found in the database.');
             }
-            this.setSpotifyTokens(user.access_token, user.refresh_token);
+
+            // Check if the token is expired
+            const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
+            const tokenIssuedTime = Math.floor(new Date(user.updated_at).getTime() / 1000); // Token issued time in seconds
+            const tokenExpirationTime = 3600; // Token expiration time in seconds
+
+            if (currentTime - tokenIssuedTime >= tokenExpirationTime) {
+                // Token is expired, refresh it
+                const refreshedTokens = await this.refreshAccessToken(user.refresh_token);
+                await db('users').where('user_id', id).update({
+                    access_token: refreshedTokens.access_token,
+                    refresh_token: refreshedTokens.refresh_token,
+                    updated_at: db.fn.now(), // Update the token issued time
+                });
+
+                this.setSpotifyTokens(refreshedTokens.access_token, refreshedTokens.refresh_token);
+            } else {
+                this.setSpotifyTokens(user.access_token, user.refresh_token);
+            }
+
             this.apiCallCount++;
             console.log('API call count:', this.apiCallCount);
             return await apiCall();
