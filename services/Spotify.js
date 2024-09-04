@@ -124,7 +124,7 @@ class Spotify {
 
         let me;
         try {
-            me = await this.spotifyApi.getMe();
+            me = await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id);
         } catch (error) {
             console.error('Error while fetching Spotify user:', error);
             console.log('Attempting to refresh token and retry...');
