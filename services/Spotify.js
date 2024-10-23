@@ -5,6 +5,8 @@ import {MAX} from '../utils/constants.js'
 import db from '../db/database.js'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
+import redisClient from "../redisClient.js";
+import redis from "../redisClient.js";
 
 dotenv.config();
 
@@ -42,14 +44,15 @@ class Spotify {
      * @throws {Error} - Failed to make Spotify API call
      */
     async makeSpotifyApiCall(apiCall, id) {
+        const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const REQUEST_DELAY = 20; // Delay in milliseconds
+
         try {
             if (this.isRateLimited) {
                 await this.rateLimitPromise;
             }
             const user = await db('users').where('user_id', id).first();
-            if (!user) {
-                throw new Error('User not found in the database.');
-            }
+            if (!user) throw new Error('User not found in the database.');
 
             // Check if the token is expired
             const currentTime = Math.floor(Date.now() / 1000); // Current time in seconds
@@ -72,12 +75,13 @@ class Spotify {
 
             this.apiCallCount++;
             console.log('API call count:', this.apiCallCount);
+            await delay(REQUEST_DELAY);
             return await apiCall();
         } catch (error) {
-            console.log('Error:', error);
+            console.error('Error:', error);
             if (error.statusCode === 429) {
                 const retryAfter = error.headers['retry-after'] * 1000; // Convert seconds to milliseconds
-                console.log(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
+                console.error(`Rate limited. Retrying after ${retryAfter} milliseconds...`);
                 this.isRateLimited = true;
                 // Create a new promise that resolves after the wait time
                 this.rateLimitPromise = new Promise(resolve => setTimeout(resolve, retryAfter));
@@ -86,8 +90,7 @@ class Spotify {
                 this.rateLimitPromise = null; // Reset the promise
                 return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
             } else {
-                const refreshToken = await this.getRefreshToken(id);
-                await this.handleTokenRefresh(refreshToken);
+                await this.handleTokenRefresh(await this.getRefreshToken(id));
                 return this.makeSpotifyApiCall(apiCall, id); // Retry the API call
             }
         }
@@ -228,22 +231,42 @@ class Spotify {
      * @throws {Error} - Failed to retrieve tracks
      */
     async getTracks(id, spotifyApiMethod, total = MAX, offset = 0, genre = undefined, random = false) {
+        console.log('Getting tracks...');
         try {
             if (random) offset = Math.floor(Math.random() * 11);
             this.tracks = [];
             this.filteredTracks = [];
 
+            const cacheKey = `tracks:${id}:${spotifyApiMethod.name}:${total}:${offset}:${genre || 'any'}`;
+            const cachedTracks = await new Promise((resolve, reject) => {
+                redis.get(cacheKey, (err, result) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    resolve(result ? JSON.parse(result) : null);
+                });
+            });
+            if (cachedTracks) return cachedTracks;
+
             if (!genre) {
                 this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset}), id);
+                await redis.setex(cacheKey, 3600, JSON.stringify(this.tracks.body))
                 return this.tracks.body;
             }
             while (this.filteredTracks.length < 5) {
                 this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset}), id);
-                this.filteredTracks = await this.filterTracksByGenre(this.tracks.body.items, genre);
+                this.filteredTracks = await this.filterTracksByGenre(this.tracks.body.items, genre, id);
                 offset += total;
             }
+
+            await redis.setex(cacheKey, 3600, JSON.stringify({items: this.filteredTracks})).then(() => {
+            }).catch((err) => {
+                console.error(`Failed to set cache for key: ${cacheKey}`, err);
+            });
+
             return {items: this.filteredTracks};
         } catch (error) {
+            console.error('Error in getTracks:', error);
             throw new Error(`Failed to retrieve tracks: ${error.message}`);
         }
     }
@@ -253,36 +276,31 @@ class Spotify {
 
         for (const song of songs) {
             const found = await Promise.any(song.track.artists.map(async (songArtist) => {
-                try {
-                    const artist = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(songArtist.id), id);
-                    return artist.body.genres.includes(genre);
-                } catch (error) {
-                    console.error(`Error fetching artist ${songArtist.id}:`, error);
-                    return false;
+                const cacheKey = `artist:${songArtist.id}:genres`;
+                let artistGenres = await new Promise((resolve, reject) => {
+                    redisClient.get(cacheKey, (err, result) => {
+                        if (err) reject(err);
+                        resolve(result ? JSON.parse(result) : null);
+                    });
+                });
+
+                if (artistGenres) console.log(`Cache hit for artist genres: ${cacheKey} - ${artistGenres}`);
+                else {
+                    try {
+                        const artist = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(songArtist.id), id);
+                        artistGenres = artist.body.genres;
+                        await redisClient.setex(cacheKey, 3600, JSON.stringify(artistGenres)); // Cache for 1 hour
+                    } catch (error) {
+                        console.error(`Error fetching artist ${songArtist.id}:`, error);
+                        return false;
+                    }
                 }
+                return artistGenres.includes(genre);
             }));
 
-            if (found) {
-                filteredTracks.push(song);
-            }
+            if (found) filteredTracks.push(song);
         }
         return filteredTracks;
-    }
-
-    /**
-     * Get the user's top artists
-     * @param {string} id - The user's ID
-     * @param {number} [amount=25] - The amount of top artists to retrieve. Default is the value of the constant 'max'.
-     * @returns {Promise} - The user's top artists
-     * @throws {Error} - Failed to retrieve top artists
-     */
-    async getTopArtists(id, amount = MAX) {
-        try {
-            const topArtists = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyTopArtists({limit: amount}), id);
-            return topArtists.body;
-        } catch (error) {
-            throw new Error('Failed to retrieve top artists.');
-        }
     }
 
     /**

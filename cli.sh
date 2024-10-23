@@ -48,25 +48,38 @@ function getUser() {
 
 function currentlyPlaying() {
     checkIfUserIdIsSet
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/currently-playing/$USER_ID" | jq '{name: .item.name, artists: [.item.artists[].name], artist_urls: [.item.artists[].external_urls.spotify], album: .item.album.name, duration: .item.duration_ms, popularity: .item.popularity, external_urls: .item.external_urls, progress: .progress_ms, progress_bar: (("#" * (.progress_ms / .item.duration_ms * 100 | floor)) + ("-" * (100 - (.progress_ms / .item.duration_ms * 100 | floor))))}'
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/currently-playing/$USER_ID" | jq '{
+        name: .body.item.name,
+        artists: [.body.item.artists[].name],
+        artist_urls: [.body.item.artists[].external_urls.spotify],
+        album: .body.item.album.name,
+        duration: .body.item.duration_ms,
+        popularity: .body.item.popularity,
+        external_urls: .body.item.external_urls.spotify,
+        progress: .body.progress_ms,
+        progress_bar: (
+            "#" * ((.body.progress_ms / .body.item.duration_ms) * 100 | floor)
+            + "-" * (100 - ((.body.progress_ms / .body.item.duration_ms) * 100 | floor))
+        )
+    }'
 }
 
 function topTracks() {
   checkIfUserIdIsSet
     amount=${1:-20}
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-tracks/$USER_ID?amount=$amount" | jq '.items[] | {name: .name, artists: [.artists[].name], artist_urls: [.artists[].external_urls.spotify], album: .album.name, duration: .duration_ms, popularity: .popularity, external_urls: .external_urls}'
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-tracks/$USER_ID?amount=$amount" | jq '.body.items[] | {name: .name, artists: [.artists[].name], artist_urls: [.artists[].external_urls.spotify], album: .album.name, duration: .duration_ms, popularity: .popularity, external_urls: .external_urls}'
 }
 
 function topArtists() {
   checkIfUserIdIsSet
     amount=${1:-20}
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-artists/$USER_ID?amount=$amount" | jq '.items[] | {name: .name, genres: .genres, popularity: .popularity, external_urls: .external_urls}'
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/top-artists/$USER_ID?amount=$amount" | jq '.body.items[] | {name: .name, genres: .genres, popularity: .popularity, external_urls: .external_urls}'
 }
 
 function recentlyPlayed() {
   checkIfUserIdIsSet
     amount=${1:-20}
-    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/recently-played/$USER_ID?amount=$amount" | jq '.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, played_at: .played_at, external_urls: .track.external_urls}'
+    curl -H "x-api-key: $API_TOKEN" "$BASE_URL/last-listened/$USER_ID?amount=$amount" | jq '.body.items[] | {name: .track.name, artists: [.track.artists[].name], album: .track.album.name, duration: .track.duration_ms, played_at: .played_at, external_urls: .track.external_urls}'
 }
 
 function createPlaylist() {

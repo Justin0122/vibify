@@ -34,7 +34,7 @@ class Recommendations {
         for (const [condition, value] of Object.entries(conditions)) {
             if (!value) continue;
             try {
-                const songs = await this.spotify.fetchTracks(id, condition, amount, true, genre);
+                const songs = await this.spotify.fetchTracks(id, condition, amount, false, genre);
                 songIds.push(...songs);
             } catch (error) {
                 console.error(`Error fetching songs for condition ${condition}:`, error);
@@ -51,7 +51,7 @@ class Recommendations {
             ...(useTrackSeeds && {seed_tracks: randomTrackIds}),
             limit: MAX_RECOMMENDATIONS,
             ...(useAudioFeatures && this.#getAudioFeatures(songIds, id)),
-            ...this.#getTargetValues(targetValues)
+            ...(targetValues && this.#getTargetValues(targetValues))
         }), id);
     }
     async #getAudioFeatures(songIds, id) {
