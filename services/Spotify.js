@@ -1,5 +1,5 @@
 import SpotifyWebApi from 'spotify-web-api-node'
-import request from 'request'
+import axios from 'axios';
 import Recommendations from './Recommendations.js'
 import {MAX} from '../utils/constants.js'
 import db from '../db/database.js'
@@ -46,7 +46,6 @@ class Spotify {
             if (this.isRateLimited) {
                 await this.rateLimitPromise;
             }
-
             const user = await db('users').where('user_id', id).first();
             if (!user) {
                 throw new Error('User not found in the database.');
@@ -109,29 +108,25 @@ class Spotify {
      * @throws {Error} - Failed to retrieve Spotify user
      */
     async getUser(id) {
-        const user = await db('users').where('user_id', id).first().catch((error) => {
-            throw new Error('Error while fetching user from the database: ' + error.message);
+        const user = await db('users').where('user_id', id).first().catch(error => {
+            throw new Error(`Error while fetching user from the database: ${error.message}`);
         });
-        if (!user) {
-            return {error: 'User not found in the database.'};
-        }
+        if (!user) return {error: 'User not found in the database.'};
 
         this.setSpotifyTokens(user.access_token, user.refresh_token);
 
         try {
-            const me = await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id);
-            return me.body;
+            return (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
         } catch (error) {
             console.error('Error while fetching Spotify user:', error);
             console.log('Attempting to refresh token and retry...');
 
             try {
                 await this.handleTokenRefresh(user.refresh_token);
-                const me = await this.spotifyApi.getMe();
-                return me.body;
+                return (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
             } catch (error) {
                 console.error('Failed to retrieve Spotify user after refreshing token:', error);
-                throw new Error('Failed to retrieve Spotify user after refreshing token: ' + error.message);
+                throw new Error(`Failed to retrieve Spotify user after refreshing token: ${error.message}`);
             }
         }
     }
@@ -143,9 +138,7 @@ class Spotify {
      */
     async getRefreshToken(id) {
         const user = await db('users').where('user_id', id).first();
-        if (!user) {
-            throw new Error('User not found in the database.');
-        }
+        if (!user) throw new Error('User not found in the database.');
         return user.refresh_token;
     }
 
@@ -180,27 +173,23 @@ class Spotify {
         const authOptions = {
             url: 'https://accounts.spotify.com/api/token',
             headers: {
-                Authorization: `Basic ${Buffer.from(this.clientId + ':' + this.clientSecret).toString('base64')}`,
+                Authorization: `Basic ${Buffer.from(`${this.clientId}:${this.clientSecret}`).toString('base64')}`,
             },
-            form: {
+            data: new URLSearchParams({
                 grant_type: 'refresh_token',
                 refresh_token: refreshToken,
-            },
-            json: true,
+            }),
         };
 
-        return new Promise((resolve, reject) => {
-            request.post(authOptions, (error, response, body) => {
-                if (!error && response.statusCode === 200) {
-                    resolve({
-                        access_token: body.access_token,
-                        refresh_token: body.refresh_token || refreshToken,
-                    });
-                } else {
-                    reject(error);
-                }
-            });
-        });
+        try {
+            const {data} = await axios.post(authOptions.url, authOptions.data, {headers: authOptions.headers});
+            return {
+                access_token: data.access_token,
+                refresh_token: data.refresh_token || refreshToken,
+            };
+        } catch (error) {
+            throw error;
+        }
     }
 
     /**
@@ -221,8 +210,7 @@ class Spotify {
      */
     async getCurrentlyPlaying(id) {
         try {
-            const currentlyPlaying = await this.makeSpotifyApiCall(() => this.spotifyApi.getMyCurrentPlayingTrack(), id);
-            return currentlyPlaying.body;
+            return (await this.makeSpotifyApiCall(() => this.spotifyApi.getMyCurrentPlayingTrack(), id)).body;
         } catch (error) {
             throw new Error('Failed to retrieve currently playing track.');
         }
@@ -241,28 +229,22 @@ class Spotify {
      */
     async getTracks(id, spotifyApiMethod, total = MAX, offset = 0, genre = undefined, random = false) {
         try {
-            if (random) {
-                offset = Math.floor(Math.random() * 11);
-            }
+            if (random) offset = Math.floor(Math.random() * 11);
             this.tracks = [];
             this.filteredTracks = [];
 
-            if (genre) {
-                while (this.filteredTracks.length < 5) {
-                    this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({
-                        limit: total,
-                        offset: offset
-                    }), id);
-                    this.filteredTracks = await this.filterTracksByGenre(this.tracks.body.items, genre);
-                    offset += total;
-                }
-                return {items: this.filteredTracks};
-            } else {
-                this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset: offset}), id);
+            if (!genre) {
+                this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset}), id);
                 return this.tracks.body;
             }
+            while (this.filteredTracks.length < 5) {
+                this.tracks = await this.makeSpotifyApiCall(() => spotifyApiMethod({limit: total, offset}), id);
+                this.filteredTracks = await this.filterTracksByGenre(this.tracks.body.items, genre);
+                offset += total;
+            }
+            return {items: this.filteredTracks};
         } catch (error) {
-            throw new Error('Failed to retrieve tracks: ' + error.message);
+            throw new Error(`Failed to retrieve tracks: ${error.message}`);
         }
     }
 
@@ -321,9 +303,7 @@ class Spotify {
         try {
             const songsFromMonth = await this.findLikedFromMonth(id, month, year, genre);
             const playlistDescription = `This playlist is generated with your liked songs from ${month}/${year}.`;
-            if (songsFromMonth.length === 0) {
-                return
-            }
+            if (songsFromMonth.length === 0) return
             const playlist = await this.makeSpotifyApiCall(() =>
                 this.spotifyApi.createPlaylist(playlistName, {
                     description: playlistDescription,
@@ -365,16 +345,13 @@ class Spotify {
         let total = 1;
 
         while (likedTracks.length < total) {
-            const response = await this.makeSpotifyApiCall(() =>
-                this.spotifyApi.getMySavedTracks({limit: limit, offset: offset}), id);
+            const response = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({limit, offset}), id);
             const songs = response.body.items;
             total = response.body.total;
             offset += limit;
 
             const firstAddedAt = new Date(songs[0].added_at);
-            if (firstAddedAt < startDate || (firstAddedAt > endDate && likedTracks.length > 0)) {
-                break;
-            }
+            if (firstAddedAt < startDate || (firstAddedAt > endDate && likedTracks.length > 0)) break;
 
             if (genre) {
                 const artistIds = songs.map(song => song.track.artists[0].id);
@@ -384,20 +361,17 @@ class Spotify {
                     return acc;
                 }, {});
 
-                for (const song of songs) {
+                songs.forEach(song => {
                     const addedAt = new Date(song.added_at);
-                    if (addedAt >= startDate && addedAt <= endDate) {
-                        if (artistGenres[song.track.artists[0].id].includes(genre)) {
-                            likedTracks.push(song);
-                        }
+                    if (addedAt >= startDate && addedAt <= endDate && artistGenres[song.track.artists[0].id].includes(genre)) {
+                        likedTracks.push(song);
                     }
-                }
+                });
             } else {
-                const filteredSongs = songs.filter((song) => {
+                likedTracks.push(...songs.filter(song => {
                     const addedAt = new Date(song.added_at);
                     return addedAt >= startDate && addedAt <= endDate;
-                });
-                likedTracks.push(...filteredSongs);
+                }));
             }
         }
         return likedTracks;
@@ -433,8 +407,8 @@ class Spotify {
      */
     async getAudioFeaturesFromPlaylist(playlistId, id) {
         const playlistTracks = await this.getTracksFromPlaylist(id, playlistId);
-        const songIds = playlistTracks.body.items.map((song) => song.track.id);
-        return await this.getAudioFeatures(songIds, id);
+        const songIds = playlistTracks.body.items.map(song => song.track.id);
+        return this.getAudioFeatures(songIds, id);
     }
 
     /**
@@ -457,22 +431,25 @@ class Spotify {
      * @returns {Promise} - The fetched songs.
      */
     async fetchTracks(id, condition, max = MAX, random, genre = undefined) {
-        switch (condition) {
-            case 'currentlyPlaying':
+        const fetchMethods = {
+            currentlyPlaying: async () => {
                 const currentlyPlaying = await this.getCurrentlyPlaying(id);
                 return [currentlyPlaying.item.id];
-            case 'mostPlayed':
+            },
+            mostPlayed: async () => {
                 const mostPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyTopTracks.bind(this.spotifyApi), max, 0, genre, random);
-                return mostPlayedTracks.items.map((song) => song.id);
-            case 'likedTracks':
+                return mostPlayedTracks.items.map(song => song.id);
+            },
+            likedTracks: async () => {
                 const likedTracks = await this.getTracks(id, this.spotifyApi.getMySavedTracks.bind(this.spotifyApi), max, 0, genre, random);
-                return likedTracks.items.map((song) => song.track.id);
-            case 'recentlyPlayed':
+                return likedTracks.items.map(song => song.track.id);
+            },
+            recentlyPlayed: async () => {
                 const recentlyPlayedTracks = await this.getTracks(id, this.spotifyApi.getMyRecentlyPlayedTracks.bind(this.spotifyApi), max, 0, genre, random);
-                return recentlyPlayedTracks.items.map((song) => song.track.id);
-            default:
-                return [];
-        }
+                return recentlyPlayedTracks.items.map(song => song.track.id);
+            }
+        };
+        return fetchMethods[condition] ? await fetchMethods[condition]() : [];
     }
 
     /**
@@ -510,9 +487,7 @@ class Spotify {
         const finalPlaylistName = playlistName || `Liked Tracks - ${artists.join(' , ')}`;
 
         const existingPlaylist = await this.findPlaylist(id, finalPlaylistName);
-        if (existingPlaylist) {
-            return existingPlaylist;
-        }
+        if (existingPlaylist) return existingPlaylist;
 
         try {
             const playlist = await this.makeSpotifyApiCall(() =>
@@ -523,9 +498,8 @@ class Spotify {
                 }), id
             );
 
-            if (!playlist || !playlist.body) {
-                throw new Error('Playlist is undefined or does not have a body property');
-            }
+            if (!playlist || !playlist.body) throw new Error('Playlist is undefined or does not have a body property');
+
             return playlist.body;
         } catch (error) {
             console.error('Failed to create playlist:', error);
@@ -557,35 +531,30 @@ class Spotify {
         while (likedTracks.length < total && !foundInPlaylist) {
             let response;
             try {
-                response = await this.makeSpotifyApiCall(() =>
-                    this.spotifyApi.getMySavedTracks({limit: limit, offset: offset}), id);
+                response = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({
+                    limit: limit,
+                    offset: offset
+                }), id);
             } catch (error) {
-                console.error('Failed to get saved tracks:', error);
-                return;
+                return console.error('Failed to get saved tracks:', error);
             }
             const songs = response.body.items;
             total = response.body.total;
             offset += limit;
 
-            for (const song of songs) {
-                // If the song is already in the playlist, stop fetching and filtering
+            songs.some(song => {
                 if (playlistTracks.includes(song.track.id)) {
                     foundInPlaylist = true;
-                    break;
+                    return true;
                 }
                 likedTracks.push(song);
-            }
+                return false;
+            });
 
             for (const filter of filters) {
-                // Extract the artist name from the filter
-                const artist = filter.split(':')[1];
-
-                if (artist) {
-                    await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
-                } else {
-                    console.error('Invalid filter:', filter);
-                    return;
-                }
+                const artist = filter.split(':')[1]; // e.g. 'artist:Ed Sheeran' -> 'Ed Sheeran'
+                if (!artist) return console.error(`Invalid filter: ${filter}`);
+                await this.addFilteredTracksToPlaylist(id, playlistId, await this.filterTracksByArtist(likedTracks, artist, id), addedTracks);
             }
         }
     }
@@ -601,16 +570,17 @@ class Spotify {
     async addFilteredTracksToPlaylist(id, playlistId, filteredTracks, addedTracks) {
         const chunkSize = 100;
         for (let i = 0; i < filteredTracks.length; i += chunkSize) {
-            const chunk = filteredTracks.slice(i, i + chunkSize);
-            const songUris = chunk.map(song => song.track.uri).filter(uri => !addedTracks.has(uri)); // Filter out duplicates
-            try {
-                if (songUris.length > 0) {
+            const songUris = filteredTracks.slice(i, i + chunkSize)
+                .map(song => song.track.uri)
+                .filter(uri => !addedTracks.has(uri)); // Filter out duplicates
+            if (songUris.length > 0) {
+                try {
                     await this.makeSpotifyApiCall(() => this.spotifyApi.addTracksToPlaylist(playlistId, songUris), id);
                     songUris.forEach(uri => addedTracks.add(uri)); // Add new track URIs to the set
+                } catch (error) {
+                    console.error('Failed to add tracks to playlist:', error);
+                    return;
                 }
-            } catch (error) {
-                console.error('Failed to add tracks to playlist:', error);
-                return;
             }
         }
     }
@@ -624,11 +594,8 @@ class Spotify {
      */
     async getPlaylists(id, amount = MAX, offset = 0) {
         const user = await this.getUser(id);
-        const playlists = await this.makeSpotifyApiCall(() => this.spotifyApi.getUserPlaylists(user.id, {
-            limit: amount,
-            offset: offset
-        }), id);
-        return playlists.body;
+        return (await this.makeSpotifyApiCall(() =>
+            this.spotifyApi.getUserPlaylists(user.id, {limit: amount, offset}), id)).body;
     }
 
     /**
@@ -658,8 +625,8 @@ class Spotify {
      * @returns {Promise<string>} - The artist ID
      */
     async getArtistId(artist, id) {
-        const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.searchArtists(artist), id);
-        return artists.body.artists.items[0].id;
+        const {body: {artists: {items}}} = await this.makeSpotifyApiCall(() => this.spotifyApi.searchArtists(artist), id);
+        return items[0].id;
     }
 
     /**
@@ -671,16 +638,18 @@ class Spotify {
      * @returns {Promise<void>}
      */
     async insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token) {
-        await db('users').insert({
-            user_id: id,
-            access_token: access_token,
-            refresh_token: refresh_token,
-            expires_in: expires_in,
-            api_token: api_token,
-        }).catch((err) => {
+        try {
+            await db('users').insert({
+                user_id: id,
+                access_token,
+                refresh_token,
+                expires_in,
+                api_token,
+            });
+        } catch (err) {
             console.log("Error inserting user into database: ", err);
             return err;
-        });
+        }
     }
 
     /**
@@ -697,24 +666,19 @@ class Spotify {
     /**
      * @param {string} code - The authorization code
      * @param {string} id - The user's ID
-     * @returns {Promise<void>}
+     * @returns {Promise<{api_token: string, userId: string}>}
      */
     async authorizationCodeGrant(code, id) {
-        return new Promise((resolve, reject) => {
-            this.spotifyApi.authorizationCodeGrant(code)
-                .then(
-                    async (data) => {
-                        const {access_token, refresh_token, expires_in} = data.body;
-                        const api_token = crypto.createHash('sha256').update(id + access_token).digest('hex');
-                        await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token);
-                        resolve(api_token);
-                    },
-                    (err) => {
-                        console.log('Something went wrong!', err);
-                        reject(err);
-                    }
-                );
-        });
+        try {
+            const data = await this.spotifyApi.authorizationCodeGrant(code);
+            const {access_token, refresh_token, expires_in} = data.body;
+            const api_token = crypto.createHash('sha256').update(id + access_token).digest('hex');
+            await this.insertUserIntoDatabase(id, access_token, refresh_token, expires_in, api_token);
+            return {api_token, userId: id};
+        } catch (err) {
+            console.log('Something went wrong!', err);
+            throw err;
+        }
     }
 }
 

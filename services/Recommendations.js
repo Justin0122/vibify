@@ -54,7 +54,6 @@ class Recommendations {
             ...this.#getTargetValues(targetValues)
         }), id);
     }
-
     async #getAudioFeatures(songIds, id) {
         const audioFeatures = await this.spotify.getAudioFeatures(songIds, id);
         const featureKeys = ['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo'];
