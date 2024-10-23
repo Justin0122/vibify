@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const dbConfig = {
   development: {
-    client: 'mysql',
+    client: 'mysql2',
     connection: {
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
@@ -21,7 +21,7 @@ const dbConfig = {
   },
 
   staging: {
-    client: 'mysql',
+    client: 'mysql2',
     connection: {
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
@@ -37,7 +37,7 @@ const dbConfig = {
   },
 
   production: {
-    client: 'mysql',
+    client: 'mysql2',
     connection: {
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
