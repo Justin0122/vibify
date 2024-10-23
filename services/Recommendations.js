@@ -1,4 +1,4 @@
-import { MAX, MAX_RECOMMENDATIONS, checkAmount } from '../utils/constants.js';
+import {MAX, MAX_RECOMMENDATIONS, checkAmount} from '../utils/constants.js';
 
 class Recommendations {
     constructor(spotify) {
@@ -8,9 +8,7 @@ class Recommendations {
 
     async createRecommendationPlaylist(id, options = {}, amount = MAX) {
         amount = checkAmount(amount);
-        if (!this.#hasValidOptions(options)) {
-            return {error: 'No options selected.'};
-        }
+        if (!this.#hasValidOptions(options)) return {error: 'No options selected.'};
 
         const songIds = await this.#fetchTracksBasedOnConditions(id, options, amount);
         if (songIds.length === 0) {
@@ -31,16 +29,15 @@ class Recommendations {
     async #fetchTracksBasedOnConditions(id, options, amount = MAX) {
         const genre = options.genre;
         const songIds = [];
-        const conditions = {...options}; // Create a copy of the options object
-        delete conditions.genre; // Remove the genre property from the conditions object
+        const conditions = {...options};
+        delete conditions.genre;
         for (const [condition, value] of Object.entries(conditions)) {
-            if (value) {
-                try {
-                    const songs = await this.spotify.fetchTracks(id, condition, amount, true, genre);
-                    songIds.push(...songs);
-                } catch (error) {
-                    console.error(`Error fetching songs for condition ${condition}:`, error);
-                }
+            if (!value) continue;
+            try {
+                const songs = await this.spotify.fetchTracks(id, condition, amount, true, genre);
+                songIds.push(...songs);
+            } catch (error) {
+                console.error(`Error fetching songs for condition ${condition}:`, error);
             }
         }
         return songIds;
@@ -57,6 +54,7 @@ class Recommendations {
             ...this.#getTargetValues(targetValues)
         }), id);
     }
+
     async #getAudioFeatures(songIds, id) {
         const audioFeatures = await this.spotify.getAudioFeatures(songIds, id);
         const featureKeys = ['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo'];

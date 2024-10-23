@@ -2,6 +2,8 @@ import express from 'express';
 import Spotify from '../services/Spotify.js';
 import authenticateApiKey from '../middlewares/authenticateApiKey.js';
 import catchErrors from '../middlewares/catchErrors.js';
+import redis from '../redisClient.js';
+import cache from '../middlewares/redisCache.js';
 
 const router = express.Router();
 const spotify = new Spotify();
@@ -18,8 +20,8 @@ router.get('/authorize/:userId', catchErrors(async (req, res) => {
 router.get('/callback', catchErrors(async (req, res) => {
     const code = req.query.code;
     try {
-        const api_token = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
-        res.json({api_token});
+        const {api_token, userId} = await spotify.authorizationCodeGrant(code, req.query.state.replace('%', ''));
+        res.redirect(`${process.env.REDIRECT_URI}/dashboard?userId=${userId}&api_token=${api_token}`);
     } catch (err) {
         res.status(500).json({error: err.message});
     }
@@ -41,14 +43,25 @@ router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
 
 
 function createRoute(path, spotifyMethod) {
-    console.log(path);
-    router.get(path, authenticateApiKey, catchErrors(async (req, res) => {
-        const result = await spotify.getTracks(req.params.id, spotifyMethod.bind(spotify.spotifyApi), req.query.amount, req.query.offset);
-        if (result.error) {
-            res.status(404).json({error: result.error});
-            return;
+    router.get(path, authenticateApiKey, cache, catchErrors(async (req, res) => {
+        const options = req.query;
+        options.limit = options.limit || 50;
+        options.offset = options.offset || 0;
+        options.time_range = options.time_range || 'medium_term';
+        try {
+            let result = await spotifyMethod.bind(spotify.spotifyApi)(options);
+            if (result.error) return res.status(404).json({error: result.error});
+            await redis.setex(req.originalUrl, 60, JSON.stringify(result)).then(() => res.json(result));
+        } catch (error) {
+            const user = await spotify.getUser(req.params.id);
+            if (!user) return res.status(500).json({error: error.message});
+            const refreshToken = await spotify.getRefreshToken(req.params.id);
+            await spotify.handleTokenRefresh(refreshToken);
+            const result = await spotifyMethod.bind(spotify.spotifyApi)(options);
+            if (result.error) return res.status(404).json({error: result.error});
+
+            await redis.setex(req.originalUrl, 60, JSON.stringify(result)).then(() => res.json(result));
         }
-        res.json(result);
     }));
 }
 
@@ -69,8 +82,8 @@ router.get('/playlists/:id', authenticateApiKey, catchErrors(async (req, res) =>
 }));
 
 router.post('/recommendations', authenticateApiKey, catchErrors(async (req, res) => {
-    const { id, amount } = req.body;
-    const options = { ...req.body };
+    const {id, amount} = req.body;
+    const options = {...req.body};
     delete options.id;
     delete options.amount;
     const playlist = await spotify.recommendations.createRecommendationPlaylist(id, options, amount);
