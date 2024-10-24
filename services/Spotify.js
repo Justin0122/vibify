@@ -111,6 +111,14 @@ class Spotify {
      * @throws {Error} - Failed to retrieve Spotify user
      */
     async getUser(id) {
+        const cacheKey = `user:${id}`;
+        const cachedUser = await new Promise((resolve, reject) => {
+            redis.get(cacheKey, (err, result) => {
+                if (err) reject(err);
+                resolve(result ? JSON.parse(result) : null);
+            });
+        });
+        if (cachedUser) return cachedUser;
         const user = await db('users').where('user_id', id).first().catch(error => {
             throw new Error(`Error while fetching user from the database: ${error.message}`);
         });
@@ -119,14 +127,18 @@ class Spotify {
         this.setSpotifyTokens(user.access_token, user.refresh_token);
 
         try {
-            return (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
+            const spotifyUser = (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
+            await redis.setex(cacheKey, 3600, JSON.stringify(spotifyUser));
+            return spotifyUser;
         } catch (error) {
             console.error('Error while fetching Spotify user:', error);
             console.log('Attempting to refresh token and retry...');
 
             try {
                 await this.handleTokenRefresh(user.refresh_token);
-                return (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
+                const spotifyUser = (await this.makeSpotifyApiCall(() => this.spotifyApi.getMe(), id)).body;
+                await redis.setex(cacheKey, 3600, JSON.stringify(spotifyUser));
+                return spotifyUser;
             } catch (error) {
                 console.error('Failed to retrieve Spotify user after refreshing token:', error);
                 throw new Error(`Failed to retrieve Spotify user after refreshing token: ${error.message}`);
