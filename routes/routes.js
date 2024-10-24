@@ -2,7 +2,6 @@ import express from 'express';
 import Spotify from '../services/Spotify.js';
 import authenticateApiKey from '../middlewares/authenticateApiKey.js';
 import catchErrors from '../middlewares/catchErrors.js';
-import redis from '../redisClient.js';
 import cache from '../middlewares/redisCache.js';
 
 const router = express.Router();
@@ -32,7 +31,7 @@ router.get('/delete-user/:id', authenticateApiKey, catchErrors(async (req, res) 
     res.json(user);
 }));
 
-router.get('/user/:id', authenticateApiKey, catchErrors(async (req, res) => {
+router.get('/user/:id', authenticateApiKey, cache, catchErrors(async (req, res) => {
     try {
         const user = await spotify.getUser(req.params.id);
         res.send(user);
@@ -51,7 +50,7 @@ function createRoute(path, spotifyMethod) {
         try {
             let result = await spotifyMethod.bind(spotify.spotifyApi)(options);
             if (result.error) return res.status(404).json({error: result.error});
-            await redis.setex(req.originalUrl, 60, JSON.stringify(result)).then(() => res.json(result));
+            res.json(result);
         } catch (error) {
             const user = await spotify.getUser(req.params.id);
             if (!user) return res.status(500).json({error: error.message});
@@ -59,8 +58,7 @@ function createRoute(path, spotifyMethod) {
             await spotify.handleTokenRefresh(refreshToken);
             const result = await spotifyMethod.bind(spotify.spotifyApi)(options);
             if (result.error) return res.status(404).json({error: result.error});
-
-            await redis.setex(req.originalUrl, 60, JSON.stringify(result)).then(() => res.json(result));
+            res.json(result);
         }
     }));
 }
