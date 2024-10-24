@@ -47,7 +47,15 @@ class Spotify {
         const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
         const REQUEST_DELAY = 20; // Delay in milliseconds
 
+        const cacheKey = `spotifyApiCall:${id}:${apiCall.name}`;
+
         try {
+            const cachedResult = await redis.get(cacheKey);
+            if (cachedResult) {
+                console.log('Cache hit!');
+                return JSON.parse(cachedResult);
+            }
+
             if (this.isRateLimited) {
                 await this.rateLimitPromise;
             }
@@ -76,7 +84,10 @@ class Spotify {
             this.apiCallCount++;
             console.log('API call count:', this.apiCallCount);
             await delay(REQUEST_DELAY);
-            return await apiCall();
+            const result = await apiCall();
+            await redis.setex(cacheKey, 3600, JSON.stringify(result));
+
+            return result;
         } catch (error) {
             console.error('Error:', error);
             if (error.statusCode === 429) {
