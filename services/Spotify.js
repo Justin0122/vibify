@@ -328,7 +328,7 @@ class Spotify {
     async createPlaylist(id, month, year, playlistName = undefined, genre = undefined) {
         // Generate a default playlist name if not provided
         if (!playlistName) {
-            const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' });
+            const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
             playlistName = `Liked Tracks from ${monthName} ${year}.`;
         }
 
@@ -380,6 +380,34 @@ class Spotify {
     }
 
     /**
+     * Check if tracks are still liked by the user.
+     *
+     * This method checks if the tracks specified by their IDs are still liked by the user.
+     * It does this by making calls to the Spotify API in batches of 50 tracks at a time.
+     *
+     * @param {Array<string>} trackIds - An array of track IDs to check.
+     * @param {string} id - The user's ID.
+     * @returns {Promise<Array<string>>} - A promise that resolves to an array of track IDs that are no longer liked.
+     */
+    async checkIfTracksAreStillLiked(trackIds, id) {
+        const tracksToRemove = [];
+
+        // Check in batches of 50
+        for (let i = 0; i < trackIds.length; i += 50) {
+            const batch = trackIds.slice(i, i + 50);
+            const areTracksLiked = await this.makeSpotifyApiCall(() => this.spotifyApi.containsMySavedTracks(batch), id);
+            for (let j = 0; j < areTracksLiked.body.length; j++) {
+                if (!areTracksLiked.body[j]) {
+                    tracksToRemove.push(batch[j]);
+                }
+            }
+        }
+
+        return tracksToRemove;
+    }
+
+
+    /**
      * Find liked songs from a specific month
      * @param {string} id - The user's ID
      * @param targetMonth - The month to find liked songs for
@@ -402,11 +430,28 @@ class Spotify {
             })
             .select('*');
 
-        // If records are found in the database, return them
+        // If records are found in the database, check if they are still liked
         if (likedTracks.length > 0) {
+            const trackIds = likedTracks.map(track => track.track_id);
+            const tracksToRemove = await this.checkIfTracksAreStillLiked(trackIds, id);
+
+            // Remove tracks that are no longer liked
+            if (tracksToRemove.length > 0) {
+                await db('liked_tracks').whereIn('track_id', tracksToRemove).del();
+                // Re-fetch liked tracks from the database after removal
+                likedTracks = await db('liked_tracks')
+                    .where({user_id: id, month: targetMonth, year: targetYear})
+                    .modify(queryBuilder => {
+                        if (genre) {
+                            queryBuilder.where('genre', genre);
+                        }
+                    })
+                    .select('*');
+            }
             return likedTracks;
         }
 
+        // If not found, proceed to fetch from Spotify
         likedTracks = [];
         const limit = MAX;
         let offset = 0;
@@ -442,10 +487,8 @@ class Spotify {
                 return addedAt >= targetStartDate && addedAt <= targetEndDate && (!genre || artistGenres[song.track.artists[0].id].includes(genre));
             }));
         }
-
         return likedTracks;
     }
-
 
     /**
      * Get the user's top tracks
