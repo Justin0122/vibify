@@ -47,15 +47,7 @@ class Spotify {
         const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
         const REQUEST_DELAY = 20; // Delay in milliseconds
 
-        const cacheKey = `spotifyApiCall:${id}:${apiCall.name}`;
-
         try {
-            const cachedResult = await redis.get(cacheKey);
-            if (cachedResult) {
-                console.log('Cache hit!');
-                return JSON.parse(cachedResult);
-            }
-
             if (this.isRateLimited) {
                 await this.rateLimitPromise;
             }
@@ -84,10 +76,7 @@ class Spotify {
             this.apiCallCount++;
             console.log('API call count:', this.apiCallCount);
             await delay(REQUEST_DELAY);
-            const result = await apiCall();
-            await redis.setex(cacheKey, 3600, JSON.stringify(result));
-
-            return result;
+            return await apiCall();
         } catch (error) {
             console.error('Error:', error);
             if (error.statusCode === 429) {
@@ -337,14 +326,26 @@ class Spotify {
      * @throws {Error} - Failed to create playlist
      */
     async createPlaylist(id, month, year, playlistName = undefined, genre = undefined) {
+        // Generate a default playlist name if not provided
         if (!playlistName) {
-            const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
+            const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'short' });
             playlistName = `Liked Tracks from ${monthName} ${year}.`;
         }
+
         try {
+            // Fetch songs for the specified month and year
             const songsFromMonth = await this.findLikedFromMonth(id, month, year, genre);
+            console.log(`Amount of songs from month: ${songsFromMonth.length}`);
+
+            // Check if any songs were found
+            if (songsFromMonth.length === 0) {
+                console.warn(`No liked tracks found for ${month}/${year}. Playlist creation aborted.`);
+                return; // Early exit if no songs are found
+            }
+
             const playlistDescription = `This playlist is generated with your liked songs from ${month}/${year}.`;
-            if (songsFromMonth.length === 0) return
+
+            // Create the playlist
             const playlist = await this.makeSpotifyApiCall(() =>
                 this.spotifyApi.createPlaylist(playlistName, {
                     description: playlistDescription,
@@ -352,12 +353,22 @@ class Spotify {
                     collaborative: false,
                 }), id
             );
-            const songUris = songsFromMonth.map((song) => song.track.uri);
+
+            console.log(`Playlist created: ${playlist?.id} - ${playlistName}`); // Log playlist creation
+
+            // Determine the structure of `songsFromMonth` and construct `songUris` accordingly
+            const songUris = songsFromMonth[0].track_id
+                ? songsFromMonth.map(song => `spotify:track:${song.track_id}`) // Use track_id if data is from DB
+                : songsFromMonth.map(song => song.track.uri); // Use track.uri if data is from Spotify
+
+            // Add tracks to the playlist
             return await this.addTracksToPlaylistAndRetrieve(songUris, playlist, id);
         } catch (error) {
+            console.error('Error creating playlist:', error); // Log detailed error
             throw new Error('Failed to create playlist: ' + error.message);
         }
     }
+
 
     async addTracksToPlaylistAndRetrieve(songUris, playlist, id) {
         for (let i = 0; i < songUris.length; i += MAX) {
@@ -371,52 +382,70 @@ class Spotify {
     /**
      * Find liked songs from a specific month
      * @param {string} id - The user's ID
-     * @param {number} month - The month to create the playlist for
-     * @param {number} year - The year to create the playlist for
+     * @param targetMonth - The month to find liked songs for
+     * @param targetYear - The year to find liked songs for
      * @param {string} genre - The genre to create the playlist for
      * @returns {Promise} - The liked songs from the specified month
      * @throws {Error} - Failed to retrieve liked songs
      */
-    async findLikedFromMonth(id, month, year, genre = undefined) {
-        const likedTracks = [];
+    async findLikedFromMonth(id, targetMonth, targetYear, genre = undefined) {
+        const targetStartDate = new Date(targetYear, targetMonth - 1, 1);
+        const targetEndDate = new Date(targetYear, targetMonth, 0);
+
+        // Check if tracks for this month and year are already in the database
+        let likedTracks = await db('liked_tracks')
+            .where({user_id: id, month: targetMonth, year: targetYear})
+            .modify(queryBuilder => {
+                if (genre) {
+                    queryBuilder.where('genre', genre);
+                }
+            })
+            .select('*');
+
+        // If records are found in the database, return them
+        if (likedTracks.length > 0) {
+            return likedTracks;
+        }
+
+        likedTracks = [];
         const limit = MAX;
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0);
         let offset = 0;
         let total = 1;
 
         while (likedTracks.length < total) {
+            // Fetch a batch of liked tracks from Spotify
             const response = await this.makeSpotifyApiCall(() => this.spotifyApi.getMySavedTracks({limit, offset}), id);
             const songs = response.body.items;
             total = response.body.total;
             offset += limit;
 
+            // Check the date of the first track in the current batch
             const firstAddedAt = new Date(songs[0].added_at);
-            if (firstAddedAt < startDate || (firstAddedAt > endDate && likedTracks.length > 0)) break;
 
-            if (genre) {
-                const artistIds = songs.map(song => song.track.artists[0].id);
-                const artists = await this.makeSpotifyApiCall(() => this.spotifyApi.getArtists(artistIds), id);
-                const artistGenres = artists.body.artists.reduce((acc, artist) => {
-                    acc[artist.id] = artist.genres;
-                    return acc;
-                }, {});
+            if (firstAddedAt < targetStartDate) break;
 
-                songs.forEach(song => {
-                    const addedAt = new Date(song.added_at);
-                    if (addedAt >= startDate && addedAt <= endDate && artistGenres[song.track.artists[0].id].includes(genre)) {
-                        likedTracks.push(song);
-                    }
-                });
-            } else {
-                likedTracks.push(...songs.filter(song => {
-                    const addedAt = new Date(song.added_at);
-                    return addedAt >= startDate && addedAt <= endDate;
-                }));
-            }
+            // Insert all tracks from the current batch into the database
+            const dbEntries = songs.map(song => ({
+                user_id: id,
+                track_id: song.track.id,
+                added_at: song.added_at,
+                genre,
+                year: new Date(song.added_at).getFullYear(),
+                month: new Date(song.added_at).getMonth() + 1
+            }));
+
+            await db('liked_tracks').insert(dbEntries).onConflict('track_id').ignore();
+
+            // Filter only tracks within the target date range
+            likedTracks.push(...songs.filter(song => {
+                const addedAt = new Date(song.added_at);
+                return addedAt >= targetStartDate && addedAt <= targetEndDate && (!genre || artistGenres[song.track.artists[0].id].includes(genre));
+            }));
         }
+
         return likedTracks;
     }
+
 
     /**
      * Get the user's top tracks
