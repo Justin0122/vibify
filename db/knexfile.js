@@ -4,13 +4,11 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '../.env') });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const dbConfig = {
   development: {
     client: 'mysql2',
     connection: {
+      host: process.env.DB_HOST || 'localhost',
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
       password: process.env.DB_PASS
@@ -23,6 +21,7 @@ const dbConfig = {
   staging: {
     client: 'mysql2',
     connection: {
+      host: process.env.DB_HOST || 'localhost',
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
       password: process.env.DB_PASS
@@ -39,6 +38,7 @@ const dbConfig = {
   production: {
     client: 'mysql2',
     connection: {
+      host: process.env.DB_HOST || 'localhost',
       database: process.env.DB_NAME,
       user: process.env.DB_USER,
       password: process.env.DB_PASS,

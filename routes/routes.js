@@ -44,7 +44,7 @@ router.get('/user/:id', authenticateApiKey, cache, catchErrors(async (req, res) 
 function createRoute(path, spotifyMethod) {
     router.get(path, authenticateApiKey, cache, catchErrors(async (req, res) => {
         const options = req.query;
-        options.limit = options.limit || 50;
+        options.limit = options.limit || options.amount || 50;
         options.offset = options.offset || 0;
         options.time_range = options.time_range || 'medium_term';
         try {
