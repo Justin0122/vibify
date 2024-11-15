@@ -5,10 +5,9 @@
 export const up = async (knex) => {
     await knex.schema.createTable('liked_tracks', table => {
         table.increments('id');
-        table.string('user_id').notNullable();
-        table.string('track_id').notNullable().unique();
+        table.integer('user_id').unsigned().notNullable().references('id').inTable('users');
+        table.integer('track_id').unsigned().notNullable().references('id').inTable('tracks');
         table.string('added_at').notNullable();
-        table.string('genre');
         table.integer('year').notNullable();
         table.integer('month').notNullable();
     });
