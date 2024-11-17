@@ -283,6 +283,17 @@ class Spotify {
         }
     }
 
+    /**
+     * Filter tracks by genre.
+     *
+     * This method filters a list of songs to include only those whose artists belong to a specified genre.
+     * It checks the genres of the artists from a cache first, and if not found, it fetches the genres from the Spotify API.
+     *
+     * @param {Array<Object>} songs - An array of song objects to filter.
+     * @param {string} genre - The genre to filter the songs by.
+     * @param {string} id - The user's ID.
+     * @returns {Promise<Array<Object>>} - A promise that resolves to an array of filtered song objects.
+     */
     async filterTracksByGenre(songs, genre, id) {
         const filteredTracks = [];
 
@@ -335,7 +346,6 @@ class Spotify {
         try {
             // Fetch songs for the specified month and year
             const songsFromMonth = await this.findLikedFromMonth(id, month, year, genre);
-            console.log(`Amount of songs from month: ${songsFromMonth.length}`);
 
             // Check if any songs were found
             if (songsFromMonth.length === 0) {
@@ -370,6 +380,17 @@ class Spotify {
     }
 
 
+    /**
+     * Add tracks to a playlist and retrieve the updated playlist.
+     *
+     * This method adds tracks to a specified playlist in batches of a maximum size defined by the constant `MAX`.
+     * After adding all tracks, it retrieves and returns the updated playlist.
+     *
+     * @param {Array<string>} songUris - An array of Spotify track URIs to add to the playlist.
+     * @param {Object} playlist - The playlist object to which tracks will be added.
+     * @param {string} id - The user's ID.
+     * @returns {Promise<Object>} - A promise that resolves to the updated playlist object.
+     */
     async addTracksToPlaylistAndRetrieve(songUris, playlist, id) {
         for (let i = 0; i < songUris.length; i += MAX) {
             const uris = songUris.slice(i, i + MAX);
@@ -402,7 +423,6 @@ class Spotify {
                 }
             }
         }
-
         return tracksToRemove;
     }
 
@@ -419,35 +439,22 @@ class Spotify {
     async findLikedFromMonth(id, targetMonth, targetYear, genre = undefined) {
         const targetStartDate = new Date(targetYear, targetMonth - 1, 1);
         const targetEndDate = new Date(targetYear, targetMonth, 0);
-
+        const userId = (await db('users').where('user_id', id).first()).id;
         // Check if tracks for this month and year are already in the database
         let likedTracks = await db('liked_tracks')
-            .where({user_id: id, month: targetMonth, year: targetYear})
+            .leftJoin('tracks', 'liked_tracks.track_id', 'tracks.id')
+            .leftJoin('artists', 'tracks.artist_id', 'artists.id')
+            .leftJoin('genres', 'tracks.genre_id', 'genres.id')
+            .where({user_id: userId, month: targetMonth, year: targetYear})
             .modify(queryBuilder => {
                 if (genre) {
-                    queryBuilder.where('genre', genre);
+                    queryBuilder.where('genres.genre', genre);
                 }
             })
-            .select('*');
+            .select('tracks.track_id as track_id', 'tracks.name as track_name', 'artists.name as artist_name', 'genres.genre as genre_name', 'liked_tracks.added_at', 'liked_tracks.year', 'liked_tracks.month');
 
-        // If records are found in the database, check if they are still liked
         if (likedTracks.length > 0) {
-            const trackIds = likedTracks.map(track => track.track_id);
-            const tracksToRemove = await this.checkIfTracksAreStillLiked(trackIds, id);
-
-            // Remove tracks that are no longer liked
-            if (tracksToRemove.length > 0) {
-                await db('liked_tracks').whereIn('track_id', tracksToRemove).del();
-                // Re-fetch liked tracks from the database after removal
-                likedTracks = await db('liked_tracks')
-                    .where({user_id: id, month: targetMonth, year: targetYear})
-                    .modify(queryBuilder => {
-                        if (genre) {
-                            queryBuilder.where('genre', genre);
-                        }
-                    })
-                    .select('*');
-            }
+            likedTracks = await this.deleteIfNotLiked(likedTracks, id, userId, targetMonth, targetYear, genre);
             return likedTracks;
         }
 
@@ -456,6 +463,25 @@ class Spotify {
         const limit = MAX;
         let offset = 0;
         let total = 1;
+        // Retrieve the latest added_at date from the database
+        const earliestTrack = await db('liked_tracks')
+            .where({user_id: userId})
+            .orderBy('added_at', 'asc')
+            .first();
+        const currentDate = new Date();
+
+        if (earliestTrack) {
+            const earliestAddedAt = new Date(earliestTrack.added_at);
+            if (earliestAddedAt < targetStartDate) {
+                offset = 0; // Start from the target start date
+            } else if (earliestAddedAt < currentDate) {
+                offset = await this.calculateOffset(earliestAddedAt, userId);
+            } else {
+                offset = 0; // Start from the current date
+            }
+        } else {
+            offset = 0; // No tracks in the database, start from the target start date
+        }
 
         while (likedTracks.length < total) {
             // Fetch a batch of liked tracks from Spotify
@@ -469,25 +495,164 @@ class Spotify {
 
             if (firstAddedAt < targetStartDate) break;
 
-            // Insert all tracks from the current batch into the database
-            const dbEntries = songs.map(song => ({
-                user_id: id,
-                track_id: song.track.id,
-                added_at: song.added_at,
-                genre,
-                year: new Date(song.added_at).getFullYear(),
-                month: new Date(song.added_at).getMonth() + 1
-            }));
+            // Get audio features for the current batch of tracks
+            const trackIds = songs.map(song => song.track.id);
+            const audioFeatures = await this.getAudioFeatures(trackIds, id);
 
-            await db('liked_tracks').insert(dbEntries).onConflict('track_id').ignore();
+            // Get genres for all artists in the current batch
+            const artistIds = songs.map(song => song.track.artists[0].id);
+            const genresMap = await this.getArtistGenres(artistIds, id);
+
+            // Insert all tracks from the current batch into the database
+            for (const song of songs) {
+                const artist = song.track.artists[0];
+                const trackGenres = genre ? [genre] : genresMap[artist.id] || [];
+
+                // Insert artist if not exists
+                const [artistRecord] = await db('artists').insert({
+                    artist_id: artist.id,
+                    name: artist.name
+                }).onConflict('artist_id').ignore();
+
+                if (trackGenres.length === 0) {
+                    // Insert track without genre
+                    const audioFeature = audioFeatures.find(feature => feature.id === song.track.id);
+                    const [trackRecord] = await db('tracks').insert({
+                        track_id: song.track.id,
+                        name: song.track.name,
+                        artist_id: artistRecord || (await db('artists').where('artist_id', artist.id).first()).id,
+                        genre_id: null,
+                        danceability: audioFeature ? audioFeature.danceability : null,
+                        energy: audioFeature ? audioFeature.energy : null,
+                        loudness: audioFeature ? audioFeature.loudness : null,
+                        speechiness: audioFeature ? audioFeature.speechiness : null,
+                        acousticness: audioFeature ? audioFeature.acousticness : null,
+                        instrumentalness: audioFeature ? audioFeature.instrumentalness : null,
+                        liveness: audioFeature ? audioFeature.liveness : null,
+                        valence: audioFeature ? audioFeature.valence : null,
+                        tempo: audioFeature ? audioFeature.tempo : null
+                    }).onConflict('track_id').ignore();
+
+                    const trackId = trackRecord[0] || (await db('tracks').where('track_id', song.track.id).first()).id;
+                    const existingLikedTrack = await db('liked_tracks')
+                        .where({user_id: userId, track_id: trackId})
+                        .first();
+
+                    if (!existingLikedTrack) {
+                        await db('liked_tracks').insert({
+                            user_id: userId,
+                            track_id: trackId,
+                            added_at: song.added_at,
+                            year: new Date(song.added_at).getFullYear(),
+                            month: new Date(song.added_at).getMonth() + 1
+                        });
+                    }
+                } else {
+                    for (const trackGenre of trackGenres) {
+                        // Insert genre if not exists
+                        const [genreRecord] = await db('genres').insert({
+                            genre: trackGenre
+                        }).onConflict('genre').ignore();
+
+                        // Find the audio features for the current track
+                        const audioFeature = audioFeatures.find(feature => feature.id === song.track.id);
+
+                        // Insert track if not exists
+                        const [trackRecord] = await db('tracks').insert({
+                            track_id: song.track.id,
+                            name: song.track.name,
+                            artist_id: artistRecord || (await db('artists').where('artist_id', artist.id).first()).id,
+                            genre_id: genreRecord || (await db('genres').where('genre', trackGenre).first()).id,
+                            danceability: audioFeature ? audioFeature.danceability : null,
+                            energy: audioFeature ? audioFeature.energy : null,
+                            loudness: audioFeature ? audioFeature.loudness : null,
+                            speechiness: audioFeature ? audioFeature.speechiness : null,
+                            acousticness: audioFeature ? audioFeature.acousticness : null,
+                            instrumentalness: audioFeature ? audioFeature.instrumentalness : null,
+                            liveness: audioFeature ? audioFeature.liveness : null,
+                            valence: audioFeature ? audioFeature.valence : null,
+                            tempo: audioFeature ? audioFeature.tempo : null
+                        }).onConflict('track_id').ignore();
+
+                        const trackId = trackRecord[0] || (await db('tracks').where('track_id', song.track.id).first()).id;
+                        const existingLikedTrack = await db('liked_tracks')
+                            .where({user_id: userId, track_id: trackId})
+                            .first();
+
+                        if (!existingLikedTrack) {
+                            await db('liked_tracks').insert({
+                                user_id: userId,
+                                track_id: trackId,
+                                added_at: song.added_at,
+                                year: new Date(song.added_at).getFullYear(),
+                                month: new Date(song.added_at).getMonth() + 1
+                            });
+                        }
+                    }
+                }
+            }
 
             // Filter only tracks within the target date range
             likedTracks.push(...songs.filter(song => {
                 const addedAt = new Date(song.added_at);
-                return addedAt >= targetStartDate && addedAt <= targetEndDate && (!genre || artistGenres[song.track.artists[0].id].includes(genre));
+                return addedAt >= targetStartDate && addedAt <= targetEndDate && (!genre || genresMap[song.track.artists[0].id].includes(genre));
             }));
         }
         return likedTracks;
+    }
+
+    /**
+     * Calculate the offset for fetching liked tracks.
+     *
+     * This method calculates the offset for fetching liked tracks by counting the total number of liked tracks
+     * that were added after a specified date.
+     *
+     * @param {Date} latestAddedAt - The date of the latest added track.
+     * @param {string} userId - The user's ID.
+     * @returns {Promise<number>} - A promise that resolves to the count of liked tracks added after the specified date.
+     */
+    async calculateOffset(latestAddedAt, userId) {
+        const totalLikedTracks = await db('liked_tracks')
+            .where('user_id', userId)
+            .where('added_at', '>', latestAddedAt)
+            .count();
+        return totalLikedTracks[0]['count(*)'];
+    }
+
+    /**
+     * Delete tracks that are no longer liked and re-fetch liked tracks from the database.
+     *
+     * This method checks if the tracks specified by their IDs are still liked by the user.
+     * If any tracks are no longer liked, they are removed from the database.
+     *
+     * @param {Array<Object>} trackIds - An array of track objects to check.
+     * @param {string} id - The user's ID.
+     * @param {number} userId - The user's database ID.
+     * @param {number} targetMonth - The target month to filter liked tracks.
+     * @param {number} targetYear - The target year to filter liked tracks.
+     * @param {string} [genre] - The genre to filter liked tracks.
+     * @returns {Promise<Array<Object>>} - A promise that resolves to an array of liked track objects.
+     */
+    async deleteIfNotLiked(trackIds, id, userId, targetMonth, targetYear, genre = undefined) {
+        let tracksToRemove = await this.checkIfTracksAreStillLiked(trackIds.map(track => track.track_id), id);
+
+        // Remove tracks that are no longer liked
+        if (tracksToRemove.length > 0) {
+            await db('liked_tracks').whereIn('track_id', tracksToRemove).del();
+            // Re-fetch liked tracks from the database after removal
+            trackIds = await db('liked_tracks')
+                .join('tracks', 'liked_tracks.track_id', 'tracks.id')
+                .join('artists', 'tracks.artist_id', 'artists.id')
+                .join('genres', 'tracks.genre_id', 'genres.id')
+                .where({user_id: userId, month: targetMonth, year: targetYear})
+                .modify(queryBuilder => {
+                    if (genre) {
+                        queryBuilder.where('genres.genre', genre);
+                    }
+                })
+                .select('liked_tracks.*', 'tracks.name as track_name', 'artists.name as artist_name', 'genres.genre as genre_name');
+        }
+        return trackIds;
     }
 
     /**
@@ -792,6 +957,67 @@ class Spotify {
             console.log('Something went wrong!', err);
             throw err;
         }
+    }
+
+    /**
+     * @param {array} artistIds - The artist IDs
+     * @param {string} userId - The user's ID
+     * @returns {Promise<unknown>}
+     */
+    async getArtistGenres(artistIds, userId) {
+        const pipeline = redisClient.pipeline();
+        const cacheKeys = artistIds.map(id => `artist:${id}:genres`);
+        const genresMap = {};
+
+        // Fetch genres from cache
+        cacheKeys.forEach(key => pipeline.get(key));
+        const results = await pipeline.exec();
+
+        // Process cache results
+        results.forEach((result, index) => {
+            const [err, data] = result;
+            if (err) {
+                console.error(`Error fetching from cache: ${err}`);
+            } else if (data) {
+                genresMap[artistIds[index]] = JSON.parse(data);
+            }
+        });
+
+        // Fetch missing genres from the database
+        const missingArtistIds = artistIds.filter(id => !genresMap[id]);
+        if (missingArtistIds.length > 0) {
+            const dbResults = await db('artists')
+                .join('artist_genres', 'artists.id', 'artist_genres.artist_id')
+                .join('genres', 'artist_genres.genre_id', 'genres.id')
+                .whereIn('artists.artist_id', missingArtistIds)
+                .select('artists.artist_id', 'genres.genre');
+
+            dbResults.forEach(row => {
+                if (!genresMap[row.artist_id]) {
+                    genresMap[row.artist_id] = [];
+                }
+                genresMap[row.artist_id].push(row.genre);
+            });
+
+            // Update missing artist IDs after checking the database
+            const stillMissingArtistIds = missingArtistIds.filter(id => !genresMap[id]);
+
+            // Fetch missing genres from Spotify API
+            if (stillMissingArtistIds.length > 0) {
+                const artists = await Promise.all(stillMissingArtistIds.map(id =>
+                    this.makeSpotifyApiCall(() => this.spotifyApi.getArtist(id), userId)
+                ));
+                artists.forEach((artist, index) => {
+                    const artistId = stillMissingArtistIds[index];
+                    const artistGenres = artist.body.genres;
+                    genresMap[artistId] = artistGenres;
+                    pipeline.setex(`artist:${artistId}:genres`, 3600, JSON.stringify(artistGenres));
+                });
+                await pipeline.exec();
+            }
+        }
+
+        return genresMap;
     }
 }
 
