@@ -340,7 +340,7 @@ class Spotify {
         // Generate a default playlist name if not provided
         if (!playlistName) {
             const monthName = new Date(year, month - 1, 1).toLocaleString('en-US', {month: 'short'});
-            playlistName = `Liked Tracks from ${monthName} ${year}.`;
+            playlistName = `Liked Songs from ${monthName} ${year}.`;
         }
 
         try {
@@ -505,6 +505,9 @@ class Spotify {
 
             // Insert all tracks from the current batch into the database
             for (const song of songs) {
+            const addedAt = new Date(song.added_at);
+            if (addedAt < targetStartDate) break;
+
                 const artist = song.track.artists[0];
                 const trackGenres = genre ? [genre] : genresMap[artist.id] || [];
 
